@@ -73,3 +73,25 @@ export function stateCodeFromGstin(gstin: string): string | null {
   const clean = gstin.trim().toUpperCase();
   return GSTIN_PATTERN.test(clean) ? clean.slice(0, 2) : null;
 }
+
+const STATE_NAMES: Record<string, string> = {
+  "37": "Andhra Pradesh",
+  "36": "Telangana",
+  "33": "Tamil Nadu",
+  "29": "Karnataka",
+  "27": "Maharashtra",
+  "07": "Delhi",
+  "09": "Uttar Pradesh",
+  "24": "Gujarat",
+  "19": "West Bengal",
+  "32": "Kerala",
+  "23": "Madhya Pradesh",
+  "08": "Rajasthan",
+  "21": "Odisha",
+  "03": "Punjab",
+  "06": "Haryana",
+};
+
+export function stateNameFromCode(code: string): string | null {
+  return STATE_NAMES[code.trim()] ?? null;
+}

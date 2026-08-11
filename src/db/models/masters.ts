@@ -62,12 +62,17 @@ export interface PartyDoc {
   name: string;
   partyType: PartyType;
   gstin?: string;
+  pan?: string;
   addressLines: string[];
   state: string;
   stateCode: string;
   contactName?: string;
   phone?: string;
   email?: string;
+  bankName?: string;
+  bankAccount?: string;
+  bankIfsc?: string;
+  notes?: string;
   isActive: boolean;
 }
 
@@ -77,12 +82,17 @@ const partySchema = new Schema<PartyDoc>(
     name: { type: String, required: true, trim: true },
     partyType: { type: String, enum: PARTY_TYPES, required: true },
     gstin: { type: String, uppercase: true, trim: true },
+    pan: { type: String, uppercase: true, trim: true },
     addressLines: { type: [String], default: [] },
     state: { type: String, default: "Andhra Pradesh" },
     stateCode: { type: String, default: "37" },
     contactName: String,
     phone: String,
     email: String,
+    bankName: String,
+    bankAccount: String,
+    bankIfsc: { type: String, uppercase: true, trim: true },
+    notes: String,
     isActive: { type: Boolean, default: true },
   },
   { timestamps: true, collection: "parties" },

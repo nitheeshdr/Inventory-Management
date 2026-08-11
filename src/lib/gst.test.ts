@@ -6,6 +6,7 @@ import {
   roundOffDelta,
   splitTax,
   stateCodeFromGstin,
+  stateNameFromCode,
 } from "./gst";
 import { round2 } from "./format";
 
@@ -110,5 +111,17 @@ describe("isInterState", () => {
     // Both the plant and Best Enterprises are Andhra Pradesh (37).
     expect(isInterState("37", "37")).toBe(false);
     expect(isInterState("37", "33")).toBe(true);
+  });
+});
+
+describe("stateNameFromCode", () => {
+  it("resolves valid state codes to state names", () => {
+    expect(stateNameFromCode("37")).toBe("Andhra Pradesh");
+    expect(stateNameFromCode("33")).toBe("Tamil Nadu");
+    expect(stateNameFromCode("36")).toBe("Telangana");
+  });
+
+  it("returns null for unknown state codes", () => {
+    expect(stateNameFromCode("99")).toBeNull();
   });
 });

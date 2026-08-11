@@ -73,12 +73,17 @@ const partySchema = z.object({
   name: z.string().trim().min(1, "Name is required"),
   partyType: z.enum(PARTY_TYPES),
   gstin: z.string().trim().optional(),
+  pan: z.string().trim().optional(),
   addressLines: z.string().optional(),
   state: z.string().trim().default("Andhra Pradesh"),
   stateCode: z.string().trim().default("37"),
   contactName: z.string().trim().optional(),
   phone: z.string().trim().optional(),
   email: z.string().trim().optional(),
+  bankName: z.string().trim().optional(),
+  bankAccount: z.string().trim().optional(),
+  bankIfsc: z.string().trim().optional(),
+  notes: z.string().trim().optional(),
   isActive: z.boolean().default(true),
 });
 
@@ -120,8 +125,14 @@ export async function saveParty(
     };
   }
 
+  // Derive PAN from GSTIN if GSTIN is provided and valid and pan is not explicitly set
+  const derivedPan =
+    data.pan?.toUpperCase() ||
+    (data.gstin && isValidGstin(data.gstin) ? data.gstin.substring(2, 12).toUpperCase() : undefined);
+
   const payload = {
     ...data,
+    pan: derivedPan,
     // The first two digits of a GSTIN are the state code — trust them over
     // whatever was typed in the state field.
     stateCode: (data.gstin && stateCodeFromGstin(data.gstin)) || data.stateCode,
@@ -146,6 +157,9 @@ export async function saveParty(
   }
 
   revalidatePath("/masters/parties");
+  revalidatePath("/masters/job-workers");
+  revalidatePath("/challans/new");
+  revalidatePath("/grn/new");
 
   return { ok: true, data: { _id: saved._id.toString() } };
 }

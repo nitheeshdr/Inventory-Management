@@ -13,6 +13,7 @@ const QUICK_LINKS: SearchHit[] = [
   { group: "Go to", label: "Outward challans", detail: "Job-work register", href: "/challans" },
   { group: "Go to", label: "New challan", detail: "Send goods out", href: "/challans/new" },
   { group: "Go to", label: "New return note", detail: "Receive goods back", href: "/grn/new" },
+  { group: "Go to", label: "Job worker registration", detail: "Register vendors & stock locations", href: "/masters/job-workers" },
   { group: "Go to", label: "Aging & deadlines", detail: "1-year GST clock", href: "/reports/aging" },
 ];
 

@@ -2,8 +2,9 @@ import { PageHeader } from "@/components/ui/primitives";
 import { TabNav } from "@/components/shell/sidebar";
 
 const TABS = [
+  { href: "/masters/job-workers", label: "Job workers" },
   { href: "/masters/items", label: "Items" },
-  { href: "/masters/parties", label: "Job workers & customers" },
+  { href: "/masters/parties", label: "Customers & suppliers" },
   { href: "/masters/routes", label: "Process routes" },
   { href: "/masters/company", label: "Company" },
 ];
