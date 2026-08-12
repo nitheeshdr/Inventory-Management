@@ -1,22 +1,22 @@
 /**
- * Turns the books around: this app belongs to BEST ENTERPRISES, the job worker,
- * not to Hamilton, the principal.
+ * Turns the books around: this app belongs to the job worker, not to the
+ * principal.
  *
  * That inverts every document:
  *
- *   Hamilton's delivery challan  →  goods arrive at our factory (inward)
- *   our return note              →  goods go back to Hamilton (outward)
- *   BE/26-27/0344                →  a sale invoice we raise, not a bill we pay
+ *   the principal's delivery challan  →  goods arrive at our factory (inward)
+ *   our return note                   →  goods go back to them (outward)
+ *   the job-work invoice              →  raised by us, not received by us
  *
  * What this script changes:
- *   · company profile becomes Best Enterprises, with the bank details printed
- *     on their return note
- *   · the three vendor accounts (1303807 / 1105306 / 1309486) were Hamilton's
- *     codes for us all along — they become customer accounts under Hamilton's
- *     GSTIN, one per process, each keeping its own stock location
- *   · the job-work bill moves from purchase invoices to sales invoices
+ *   · every job-worker party becomes a customer, keeping its own name, GSTIN
+ *     and address exactly as entered
+ *   · their stock locations are re-kinded to match
+ *   · job-work bills move from purchase invoices to sales invoices
  *
- * Items, process routes and rates are untouched.
+ * No identity is written here. Company name, GSTIN, address and bank details
+ * are business data and belong in the database — set them at Masters → Company
+ * before running this. Items, process routes and rates are untouched.
  *
  * Run with:  npm run switch-role
  */
@@ -34,115 +34,58 @@ import {
 import { amountInWords, round2, round3 } from "@/lib/format";
 import { isInterState, roundOffDelta, splitTax } from "@/lib/gst";
 
-/** Best Enterprises — from their tax invoice and return note letterheads. */
-const US = {
-  name: "BEST ENTERPRISES",
-  gstin: "37ALAPP4700H1ZB",
-  addressLines: [
-    "PLOT NO. UDL-2A/2, S.NO. 112-1",
-    "APIIC CHINNAPANDURU, VARADAIAHPALEM",
-    "TIRUPATI 517541",
-  ],
-  state: "Andhra Pradesh",
-  stateCode: "37",
-  phone: "9913775149",
-  bankName: "STATE BANK OF INDIA",
-  bankAccount: "30908707175",
-  bankIfsc: "SBIN0012",
-  salesInvoicePrefix: "BE",
-  grnPrefix: "RN",
-  challanPrefix: "IN",
-};
-
-/** Hamilton Housewares — from the challan they issue us. */
-const CUSTOMER = {
-  name: "HAMILTON HOUSEWARES PVT LTD",
-  gstin: "37AABCD1683Q3Z3",
-  addressLines: [
-    "PLOT NO 755, CHIGURUPALEM ROAD",
-    "SATYAVEDU MANDAL, SRI CITY",
-    "CHITTOOR 517646",
-  ],
-  state: "Andhra Pradesh",
-  stateCode: "37",
-  phone: "9533721680",
-};
-
-/** Their vendor codes for us, and what each covers. */
-const ACCOUNTS: Record<string, string> = {
-  "1303807": "ELECTROLYSIS & COPPER",
-  "1105306": "PAINTING & POWDER",
-  "1309486": "FOC",
-};
-
 async function main() {
   await connectDb();
   console.log(`Connected to ${mongoose.connection.name}\n`);
 
-  /* --------------------------------------------------------- our company */
+  const company = await CompanyProfile.findOne();
+  if (!company) {
+    throw new Error("No company profile. Run `npm run bootstrap` first.");
+  }
+  if (!company.gstin) {
+    console.log("! Company GSTIN is blank — set it at Masters → Company.");
+    console.log("  Tax will be treated as intra-state until you do.\n");
+  }
+  console.log(`• Trading as ${company.name}${company.gstin ? ` (${company.gstin})` : ""}`);
 
-  await CompanyProfile.findOneAndUpdate({}, { $set: US }, { upsert: true });
-  console.log(`• Company is now ${US.name} (${US.gstin})`);
+  /* ----------------------------------- job workers become customers */
 
-  await Location.findOneAndUpdate(
-    { kind: "plant" },
-    { $set: { name: "Chinnapanduru Factory" } },
-  );
-  console.log("• Plant renamed to Chinnapanduru Factory");
+  const workers = await Party.find({ partyType: "job_worker" });
 
-  /* ------------------------------------------------ Hamilton's accounts */
-
-  for (const [code, process] of Object.entries(ACCOUNTS)) {
-    const name = `${CUSTOMER.name} — ${process}`;
-
-    const party = await Party.findOneAndUpdate(
-      { code },
-      {
-        $set: {
-          name,
-          partyType: "customer",
-          gstin: CUSTOMER.gstin,
-          addressLines: CUSTOMER.addressLines,
-          state: CUSTOMER.state,
-          stateCode: CUSTOMER.stateCode,
-          phone: CUSTOMER.phone,
-          notes: `Our vendor code with them is ${code} · ${process}`,
-        },
-      },
-      { upsert: true, returnDocument: "after" },
-    );
+  for (const party of workers) {
+    party.partyType = "customer";
+    await party.save();
 
     await Location.findOneAndUpdate(
-      { partyId: party!._id },
-      { $set: { name: `At ${name}`, kind: "customer", partyId: party!._id } },
+      { partyId: party._id },
+      { $set: { name: `At ${party.name}`, kind: "customer", partyId: party._id } },
       { upsert: true },
     );
 
-    console.log(`• ${code} → customer account "${name}"`);
+    console.log(`• ${party.code} → customer account "${party.name}"`);
   }
 
-  // Anything still marked as a job worker was created under the old direction.
-  const leftovers = await Party.updateMany(
-    { partyType: "job_worker", gstin: CUSTOMER.gstin },
-    { $set: { partyType: "customer" } },
-  );
-  if (leftovers.modifiedCount) {
-    console.log(`• ${leftovers.modifiedCount} leftover job-worker records converted`);
-  }
+  if (workers.length === 0) console.log("• No job-worker records left to convert");
 
-  /* ------------------------------- job-work bill becomes a sale invoice */
+  /* --------------------------- job-work bill becomes a sale invoice */
 
   const bills = await PurchaseInvoice.find({ status: { $ne: "cancelled" } }).lean();
+  const factory = await Location.findOne({ kind: "plant" }).lean();
   let moved = 0;
 
   for (const bill of bills) {
     if (await SalesInvoice.findOne({ invoiceNo: bill.invoiceNo })) continue;
 
     const party = await Party.findById(bill.partyId).lean();
-    const plant = await Location.findOne({ kind: "plant" }).lean();
-    if (!party || !plant) continue;
+    if (!party || !factory) continue;
 
-    const interState = isInterState(US.stateCode, party.stateCode);
+    // Only job-work charges move across. A bill from a genuine supplier stays
+    // where it is.
+    const isJobWork =
+      bill.lines.length > 0 && bill.lines.every((line) => line.hsnCode === "998898");
+    if (!isJobWork) continue;
+
+    const interState = isInterState(company.stateCode, party.stateCode);
 
     const lines = bill.lines.map((line) => {
       const tax = splitTax(line.taxableAmount, line.taxPct, interState);
@@ -177,7 +120,7 @@ async function main() {
       invoiceNo: bill.invoiceNo,
       invoiceDate: bill.invoiceDate,
       partyId: bill.partyId,
-      locationId: plant._id,
+      locationId: factory._id,
       shipToLines: party.addressLines,
       poNo: bill.poRefs.join(", "),
       vehicleNo: bill.vehicleNo,
@@ -199,7 +142,8 @@ async function main() {
       status: "open",
       notes: [
         bill.notes,
-        `ACK ${bill.ackNo ?? "—"} · IRN ${bill.irn ?? "—"}`,
+        bill.ackNo ? `ACK ${bill.ackNo}` : null,
+        bill.irn ? `IRN ${bill.irn}` : null,
         "Moved from purchase invoices when the books were switched to the job-worker view.",
       ]
         .filter(Boolean)
@@ -208,15 +152,17 @@ async function main() {
 
     await PurchaseInvoice.deleteOne({ _id: bill._id });
     moved += 1;
-    console.log(`• Bill ${bill.invoiceNo} is now a sale invoice — ₹${rounded.toLocaleString("en-IN")}`);
+    console.log(
+      `• Bill ${bill.invoiceNo} is now a sale invoice — ₹${rounded.toLocaleString("en-IN")}`,
+    );
   }
 
   if (moved === 0) console.log("• No job-work bills needed moving");
 
-  console.log("\nDone. The app now reads as Best Enterprises:");
-  console.log("  · Inward challans  — Hamilton's goods arriving for processing");
-  console.log("  · Outward returns  — processed goods and rejections going back");
-  console.log("  · Job-work invoices — what you bill Hamilton for the work");
+  console.log("\nDone. The app now reads from the job worker's side:");
+  console.log("  · Inward challans   — the principal's goods arriving for processing");
+  console.log("  · Outward returns   — processed goods and rejections going back");
+  console.log("  · Job-work invoices — what you bill them for the work");
 
   await mongoose.disconnect();
 }

@@ -1,11 +1,11 @@
 # Best Enterprises — Inventory & Job Work
 
-Inventory and job-work management for **BEST ENTERPRISES** (Chinnapanduru,
-Tirupati — GSTIN `37ALAPP4700H1ZB`), a job worker who receives components from
-principals, processes them (electrolysis, copper plating, painting, powder
-coating, stripping, buffing) and returns them.
+Inventory and job-work management for a **job worker** — a firm that receives
+components from principals, processes them (electrolysis, copper plating,
+painting, powder coating, stripping, buffing) and returns them.
 
-Hamilton Housewares runs SAP; this is Best Enterprises' own system.
+The principal runs their own ERP; this is the job worker's side of the same
+movements.
 
 It tracks what customer-owned stock is sitting in the factory, how long it has
 been held against the one-year GST deadline, and what to invoice for the work.
@@ -50,9 +50,10 @@ that prints on every document) and builds the schema indexes.
 The dashboard shows a setup checklist until there's enough master data to raise a
 challan. Work down it in order:
 
-1. **Masters → Company** — pre-filled as BEST ENTERPRISES, GSTIN
-   `37ALAPP4700H1ZB`, with the SBI account from your return note. The GSTIN's
-   first two digits set your state code, which decides CGST+SGST versus IGST.
+1. **Masters → Company** — your name, GSTIN, address and bank details. The
+   bootstrap creates this record blank on purpose: identity is business data
+   and lives in the database, never in the source. The GSTIN's first two digits
+   set your state code, which decides CGST+SGST versus IGST.
 2. **Masters → Items** — the codes you receive and the codes you return. Set
    `standard value` per piece: that's the value declared on the challan.
 3. **Masters → Customers** — the principals who send you goods. Saving one
@@ -71,11 +72,12 @@ missing rather than failing on save.
 ## Imported documents
 
 `npm run import-docs` transcribes three documents the office provided, and the
-masters they need (20 item codes, Best Enterprises, 3 process routes):
+item codes and routes they need. It attaches them to an existing customer
+account; it creates no party identity of its own:
 
 | Document | Number | Date | Figures |
 |---|---|---|---|
-| Inward challan (Hamilton's) | `2621500964` | 05.08.2026 | 11 lines · taxable ₹8,55,132.42 · total ₹8,97,889.04 |
+| Inward challan (the customer's) | `2621500964` | 05.08.2026 | 11 lines · taxable ₹8,55,132.42 · total ₹8,97,889.04 |
 | Outward return | `125` (as `GRN/26-27/0001`) | 11-07-2026 | 6 lines · 266 pcs rejected, "BODY DENT (SCRUB)" |
 | Job-work invoice | `BE/26-27/0344` | 05-08-2026 | 5 lines · 4,565 pcs · ₹74,836.04 + GST = ₹88,307 |
 
@@ -102,18 +104,20 @@ grows.
 
 | Sheet | What comes in |
 |---|---|
-| `note` | Best Enterprises' three vendor codes and their processes |
+| `note` | your vendor codes with the customer, and their processes |
 | `1303807-Vendor code` | 128 electrolysis & copper rates (SAP code → invoice code) |
 | `1105306-vendor code Stripping` | 89 stripping rates (coloured code → buffing body) |
 | `1309486-vendor foc` | 104 FOC materials (list only, no rates) |
 | `Return note ` | 180 return-note materials (list only) |
 | `1105306-vendor code colur dis` | **empty sheet** — rates read from `datas/colour-rates.csv` instead |
 
-Result: 297 items, 3 customer accounts (Hamilton's vendor codes), 229 process routes.
+Result: 297 items, 3 customer accounts (one per vendor code), 229 process routes.
 
 Each vendor code becomes its own customer account with its own stock location,
 so electrolysis work and painting work stay separate balances even though it is
-one customer on one GSTIN.
+one customer on one GSTIN. The importer writes only the account code and the
+process — **name, GSTIN and address are left blank for you to fill in at
+Masters → Customers.**
 
 `npm run import-rates -- --undo` removes the three customer accounts, their
 locations and routes, and any item that has never moved. Pass
@@ -226,6 +230,20 @@ re-run safely.
 - **Bill verification** (billed qty vs goods received, billed rate vs agreed
   rate) is a principal's tool for auditing a job worker. `Supplier bills` is now
   a plain register for bills from our own suppliers, with no such checking.
+
+## Nothing identifying is in this repository
+
+The repository is public, so no company name, GSTIN, address, phone number or
+bank account appears anywhere in the source, the tests or the fixtures.
+
+- **Company identity** is a record in `company_profile`, created blank by
+  `npm run bootstrap` and edited at Masters → Company.
+- **Customers and suppliers** are records in `parties`, edited at Masters.
+- **Rate cards** (`datas/`) are gitignored — they are customer pricing.
+- GSTINs in form placeholders and tests are made-up but well-formed.
+
+Set the real values once, in the running app. They are then used on every
+printed document.
 
 ## Not built yet
 

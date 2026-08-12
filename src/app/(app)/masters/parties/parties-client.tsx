@@ -218,7 +218,7 @@ export function PartiesClient({ rows }: { rows: PartyRow[] }) {
               <Input
                 value={editing.name}
                 onChange={(e) => setEditing({ ...editing, name: e.target.value })}
-                placeholder="BEST ENTERPRISES"
+                placeholder="Customer name"
               />
             </Field>
             <Field
@@ -230,7 +230,7 @@ export function PartiesClient({ rows }: { rows: PartyRow[] }) {
                 value={editing.gstin}
                 onChange={(e) => setEditing({ ...editing, gstin: e.target.value.toUpperCase() })}
                 className="font-mono uppercase"
-                placeholder="37ALAPP4700H1ZB"
+                placeholder="29AAAAA0000A1Z5"
               />
             </Field>
             <Field label="Address" hint="One line per row, as it should print">

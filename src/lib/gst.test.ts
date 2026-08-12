@@ -89,26 +89,26 @@ describe("roundOffDelta", () => {
 });
 
 describe("GSTIN", () => {
-  it("accepts the real GSTINs from the paperwork", () => {
-    expect(isValidGstin("37AABCD1683Q3Z3")).toBe(true);
-    expect(isValidGstin("37ALAPP4700H1ZB")).toBe(true);
+  it("accepts well-formed GSTINs", () => {
+    expect(isValidGstin("29AAAAA0000A1Z5")).toBe(true);
+    expect(isValidGstin("37ABCDE1234F1Z9")).toBe(true);
   });
 
   it("rejects malformed ones", () => {
-    expect(isValidGstin("37AABCD1683Q3Z")).toBe(false);
+    expect(isValidGstin("29AAAAA0000A1Z")).toBe(false);
     expect(isValidGstin("ABCDE1234F")).toBe(false);
     expect(isValidGstin("")).toBe(false);
   });
 
   it("reads the state code off the first two digits", () => {
-    expect(stateCodeFromGstin("37ALAPP4700H1ZB")).toBe("37");
+    expect(stateCodeFromGstin("37ABCDE1234F1Z9")).toBe("37");
     expect(stateCodeFromGstin("not a gstin")).toBeNull();
   });
 });
 
 describe("isInterState", () => {
   it("treats matching state codes as intra-state", () => {
-    // Both the plant and Best Enterprises are Andhra Pradesh (37).
+    // Both parties in Andhra Pradesh (37) means CGST + SGST.
     expect(isInterState("37", "37")).toBe(false);
     expect(isInterState("37", "33")).toBe(true);
   });

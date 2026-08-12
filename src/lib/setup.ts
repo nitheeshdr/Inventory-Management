@@ -26,36 +26,20 @@ export async function ensurePlantLocation(session?: ClientSession): Promise<Loca
   return created.toObject();
 }
 
-/**
- * The plant's own letterhead, taken from its printed challan. This is fixed
- * configuration rather than sample data, and it is editable at
- * Masters → Company.
- */
-export const COMPANY_DEFAULTS: {
-  name: string;
-  gstin: string;
-  addressLines: string[];
-  state: string;
-  stateCode: string;
-} = {
-  name: "HAMILTON HOUSEWARES PVT LTD",
-  gstin: "37AABCD1683Q3Z3",
-  addressLines: [
-    "FACTORY : PLOT NO. 755, CHIGURUPALEM ROAD",
-    "SATYAVEDU MANDAL, SRI CITY",
-    "CHITTOOR 517646",
-  ],
-  state: "Andhra Pradesh",
-  stateCode: "37",
-};
-
 export async function ensureCompanyProfile() {
   await connectDb();
 
   const existing = await CompanyProfile.findOne().lean();
   if (existing) return existing;
 
-  const created = await CompanyProfile.create({ ...COMPANY_DEFAULTS });
+  // Deliberately blank. Company identity — name, GSTIN, address, bank details —
+  // is business data and lives in the database, entered at Masters → Company.
+  // Nothing identifying is hardcoded, because this repository is public.
+  const created = await CompanyProfile.create({
+    name: "Your company",
+    gstin: "",
+    addressLines: [],
+  });
   return created.toObject();
 }
 

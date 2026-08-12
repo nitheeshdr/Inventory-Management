@@ -51,6 +51,8 @@ const LEGACY_CHALLAN_NO = "PRE-SYSTEM/2026";
 const GRN_NO = "GRN/26-27/0001";
 const BILL_NO = "BE/26-27/0344";
 const OPENING_ADJ_NO = "ADJ/26-27/0001";
+/** Which customer account these documents belong to. */
+const CUSTOMER_ACCOUNT = "1105306";
 
 /* ----------------------------------------------------------------- masters */
 
@@ -214,40 +216,26 @@ async function main() {
 
   /* -------------------------------------------------- Best Enterprises */
 
-  // Reuse the vendor account the rate workbook created rather than adding a
-  // second Best Enterprises. These documents are coating work, which is vendor
-  // 1105306 (painting & powder). Falls back to creating "BE" on a database that
-  // has not had the rate workbook imported.
-  const best =
-    (await Party.findOne({ code: "1105306", partyType: "customer" })) ??
-    (await Party.findOne({ gstin: "37AABCD1683Q3Z3", partyType: "customer" })) ??
-    (await Party.findOneAndUpdate(
-      { code: "BE" },
-      {
-        $setOnInsert: {
-          code: "BE",
-          name: "BEST ENTERPRISES",
-          partyType: "job_worker",
-          gstin: "37ALAPP4700H1ZB",
-          addressLines: [
-            "PLOT NO. UDL-2A/2, S.NO. 112-1",
-            "APIIC CHINNAPANDURU, VARADAIAHPALEM",
-            "TIRUPATI 517541",
-          ],
-          state: "Andhra Pradesh",
-          stateCode: "37",
-          phone: "9913775149",
-        },
-      },
-      { upsert: true, returnDocument: "after" },
-    ));
+  // These documents are coating work, so they belong to the painting account.
+  // Whichever customer already exists is reused — no identity is created here,
+  // because names, GSTINs and addresses live in the database.
+  const found =
+    (await Party.findOne({ code: CUSTOMER_ACCOUNT, partyType: "customer" })) ??
+    (await Party.findOne({ partyType: "customer" }).sort({ code: 1 }));
+
+  if (!found) {
+    throw new Error(
+      "No customer found. Add one at Masters → Customers (or run `npm run import-rates`) first.",
+    );
+  }
+  const customer = found;
 
   const customerLocation = await Location.findOneAndUpdate(
-    { partyId: best!._id },
-    { $setOnInsert: { name: `At ${best!.name}`, kind: "job_worker", partyId: best!._id } },
+    { partyId: customer._id },
+    { $setOnInsert: { name: `At ${customer.name}`, kind: "job_worker", partyId: customer._id } },
     { upsert: true, returnDocument: "after" },
   );
-  console.log(`• Job worker ready: ${best!.name} (${best!.gstin})`);
+  console.log(`• Customer: ${customer.name}${customer.gstin ? ` (${customer.gstin})` : ""}`);
 
   /* -------------------------------------------------------------- routes */
 
@@ -257,12 +245,12 @@ async function main() {
     if (!input || !output) continue;
 
     await ProcessRoute.findOneAndUpdate(
-      { inputItemId: input._id, outputItemId: output._id, partyId: best!._id },
+      { inputItemId: input._id, outputItemId: output._id, partyId: customer._id },
       {
         $setOnInsert: {
           inputItemId: input._id,
           outputItemId: output._id,
-          partyId: best!._id,
+          partyId: customer._id,
           processName: route.process,
           jobRate: route.rate,
           effectiveFrom: new Date("2026-04-01"),
@@ -368,7 +356,7 @@ async function main() {
     const challan = await JobWorkChallan.create({
       challanNo: opts.challanNo,
       challanDate: opts.date,
-      partyId: best!._id,
+      partyId: customer._id,
       fromLocationId: customerLocation!._id,
       toLocationId: plant._id,
       vehicleNo: opts.vehicleNo,
@@ -394,7 +382,7 @@ async function main() {
         docId: challan._id,
         docNo: challan.challanNo,
         movementDate: opts.date,
-        partyId: best!._id,
+        partyId: customer._id,
       },
       lines.flatMap((line) => [
         {
@@ -475,7 +463,7 @@ async function main() {
       grnNo: GRN_NO,
       vendorDocNo: "125",
       grnDate,
-      partyId: best!._id,
+      partyId: customer._id,
       fromLocationId: customerLocation!._id,
       toLocationId: plant._id,
       vehicleNo: "TN 18 AA 7654",
@@ -492,7 +480,7 @@ async function main() {
         docId: grn._id,
         docNo: grn.grnNo,
         movementDate: grnDate,
-        partyId: best!._id,
+        partyId: customer._id,
       },
       lines.flatMap((line) => [
         {
@@ -561,9 +549,9 @@ async function main() {
     const invoice = await SalesInvoice.create({
       invoiceNo: BILL_NO,
       invoiceDate: new Date("2026-08-05"),
-      partyId: best!._id,
+      partyId: customer._id,
       locationId: plant._id,
-      shipToLines: best!.addressLines,
+      shipToLines: customer.addressLines,
       poNo: "4500738933",
       vehicleNo: "TN85M5349",
       transport: "REFER OUR ATTACHMENT",

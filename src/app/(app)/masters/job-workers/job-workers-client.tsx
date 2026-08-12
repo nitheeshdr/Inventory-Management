@@ -432,7 +432,7 @@ export function CustomersClient({ rows }: { rows: CustomerRow[] }) {
                   <Input
                     value={editing.name}
                     onChange={(e) => setEditing({ ...editing, name: e.target.value })}
-                    placeholder="BEST ENTERPRISES"
+                    placeholder="Customer name"
                   />
                 </Field>
               </div>
@@ -446,7 +446,7 @@ export function CustomersClient({ rows }: { rows: CustomerRow[] }) {
                   value={editing.gstin}
                   onChange={(e) => handleGstinChange(e.target.value)}
                   className="font-mono uppercase"
-                  placeholder="37ALAPP4700H1ZB"
+                  placeholder="29AAAAA0000A1Z5"
                 />
               </Field>
             </div>

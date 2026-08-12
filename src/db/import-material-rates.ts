@@ -38,20 +38,6 @@ const FILE =
 /** Hand-maintained painting rates, used only when the workbook sheet is empty. */
 const COLOUR_CSV = "datas/colour-rates.csv";
 
-/** Best Enterprises' letterhead, from their printed invoice. */
-const VENDOR = {
-  name: "BEST ENTERPRISES",
-  gstin: "37ALAPP4700H1ZB",
-  addressLines: [
-    "PLOT NO. UDL-2A/2, S.NO. 112-1",
-    "APIIC CHINNAPANDURU, VARADAIAHPALEM",
-    "TIRUPATI 517541",
-  ],
-  state: "Andhra Pradesh",
-  stateCode: "37",
-  phone: "9913775149",
-};
-
 type Row = (string | number | null)[];
 
 function sheetRows(wb: XLSX.WorkBook, name: string): Row[] {
@@ -309,20 +295,17 @@ async function main() {
   const partyByVendor = new Map<string, mongoose.Types.ObjectId>();
 
   for (const vendor of vendors) {
+    // Only what the workbook actually contains: the account code and what it
+    // covers. Name, GSTIN and address are business data — fill them in at
+    // Masters → Customers. An existing record is never overwritten.
     const party = await Party.findOneAndUpdate(
       { code: vendor.code },
       {
         $setOnInsert: {
           code: vendor.code,
-          // One legal entity, three vendor accounts — each keeps its own stock
-          // location so "at electrolysis" and "at painting" stay separate.
-          name: `${VENDOR.name} — ${vendor.process}`,
-          partyType: "job_worker",
-          gstin: VENDOR.gstin,
-          addressLines: VENDOR.addressLines,
-          state: VENDOR.state,
-          stateCode: VENDOR.stateCode,
-          phone: VENDOR.phone,
+          name: `Account ${vendor.code} — ${vendor.process}`,
+          partyType: "customer",
+          addressLines: [],
           notes: `Vendor code ${vendor.code} · ${vendor.process}`,
         },
       },
@@ -334,7 +317,7 @@ async function main() {
       {
         $setOnInsert: {
           name: `At ${party!.name}`,
-          kind: "job_worker",
+          kind: "customer",
           partyId: party!._id,
         },
       },
@@ -342,7 +325,7 @@ async function main() {
     );
 
     partyByVendor.set(vendor.code, party!._id);
-    console.log(`• Vendor ${vendor.code} — ${vendor.process}`);
+    console.log(`• Account ${vendor.code} — ${vendor.process}`);
   }
 
   /* ------------------------------------------------------ process routes */
@@ -416,6 +399,8 @@ async function main() {
   console.log("  · Every rate imported is marked unconfirmed. Tick each one in");
   console.log("    Masters → Process routes once checked against the rate agreement.");
   console.log("  · Items carry no HSN code or material value yet — set them in Masters → Items.");
+  console.log("  · New customer accounts have no GSTIN or address — add them in");
+  console.log("    Masters → Customers. Nothing identifying is stored in the code.");
 
   await mongoose.disconnect();
 }

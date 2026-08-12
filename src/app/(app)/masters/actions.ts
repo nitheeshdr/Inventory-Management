@@ -107,7 +107,7 @@ export async function saveParty(
     return {
       ok: false,
       error: "That GSTIN doesn't look valid.",
-      fieldErrors: { gstin: "Expected 15 characters, e.g. 37ALAPP4700H1ZB" },
+      fieldErrors: { gstin: "Expected 15 characters, e.g. 29AAAAA0000A1Z5" },
     };
   }
 
