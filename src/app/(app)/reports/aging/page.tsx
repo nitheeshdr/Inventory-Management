@@ -80,21 +80,21 @@ export default async function AgingReportPage() {
 
       {overdue.length > 0 && (
         <div className="mb-4 rounded-md border border-danger/30 bg-danger-soft px-3 py-2.5 text-sm text-danger">
-          {overdue.length} {overdue.length === 1 ? "line has" : "lines have"} been out for more
-          than a year. Under Section 143 these count as a deemed supply — get them back or account
-          for the tax.
+          {overdue.length} {overdue.length === 1 ? "line has" : "lines have"} been with us for more
+          than a year. Under Section 143 that becomes a deemed supply for the principal — return
+          them or agree how the tax is handled.
         </div>
       )}
 
       <Card>
         <CardHeader
-          title="Pending challan lines"
-          subtitle="Oldest first. Every row is a quantity still lying with a job worker."
+          title="Goods still to return"
+          subtitle="Oldest first. Every row is a quantity still sitting in our factory."
         />
         {sorted.length === 0 ? (
           <EmptyState
-            title="Nothing is out with job workers"
-            description="Every challan has been fully returned."
+            title="No customer goods on hand"
+            description="Everything received has been returned."
           />
         ) : (
           <TableWrap className="max-h-[62vh] overflow-y-auto rounded-none border-0">
@@ -103,7 +103,7 @@ export default async function AgingReportPage() {
                 <tr>
                   <Th>Challan</Th>
                   <Th>Date</Th>
-                  <Th>Job worker</Th>
+                  <Th>Customer</Th>
                   <Th>Item</Th>
                   <ThNum>Sent</ThNum>
                   <ThNum>Returned</ThNum>

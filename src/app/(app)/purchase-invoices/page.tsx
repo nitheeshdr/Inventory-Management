@@ -28,17 +28,12 @@ export default async function PurchaseInvoicesPage() {
   ]);
 
   const partyName = new Map(parties.map((p) => [p._id.toString(), p.name]));
-  const flagged = invoices.filter((invoice) => invoice.status === "flagged").length;
 
   return (
     <>
       <PageHeader
-        title="Job-work bills"
-        subtitle={
-          flagged > 0
-            ? `${flagged} ${flagged === 1 ? "bill has" : "bills have"} a variance against what was actually received.`
-            : "Vendor invoices for processing charges, checked against return notes and agreed rates."
-        }
+        title="Supplier bills"
+        subtitle="Bills from your own suppliers — consumables, chemicals, transport."
         action={
           <Link href="/purchase-invoices/new">
             <Button variant="primary" size="sm">
@@ -52,8 +47,8 @@ export default async function PurchaseInvoicesPage() {
       {invoices.length === 0 ? (
         <TableWrap>
           <EmptyState
-            title="No job-work bills yet"
-            description="Record a vendor's invoice to check it against the goods actually received."
+            title="No supplier bills yet"
+            description="Record a bill you have received from a supplier."
             action={
               <Link href="/purchase-invoices/new">
                 <Button variant="primary" size="sm">
@@ -70,14 +65,13 @@ export default async function PurchaseInvoicesPage() {
               <tr>
                 <Th>Invoice no</Th>
                 <Th>Date</Th>
-                <Th>Job worker</Th>
+                <Th>Supplier</Th>
                 <ThNum>Qty</ThNum>
                 <ThNum>Before tax</ThNum>
                 <ThNum>Tax</ThNum>
                 <ThNum>Grand total</ThNum>
                 <Th>Status</Th>
-                <Th>Checks</Th>
-              </tr>
+                              </tr>
             </thead>
             <tbody>
               {invoices.map((invoice) => (

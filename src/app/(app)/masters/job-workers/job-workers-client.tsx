@@ -12,7 +12,6 @@ import {
   Route,
   Search,
   Users,
-  XCircle,
 } from "lucide-react";
 import {
   Button,
@@ -32,11 +31,11 @@ import { SidePanel } from "@/components/ui/modal";
 import { isValidGstin, stateCodeFromGstin, stateNameFromCode } from "@/lib/gst";
 import { saveParty, type PartyInput } from "../actions";
 
-export interface JobWorkerRow {
+export interface CustomerRow {
   _id: string;
   code: string;
   name: string;
-  partyType: "job_worker";
+  partyType: "customer";
   gstin: string;
   pan: string;
   addressLines: string[];
@@ -54,12 +53,12 @@ export interface JobWorkerRow {
   routeCount: number;
 }
 
-function blank(): JobWorkerRow {
+function blank(): CustomerRow {
   return {
     _id: "",
     code: "",
     name: "",
-    partyType: "job_worker",
+    partyType: "customer",
     gstin: "",
     pan: "",
     addressLines: [],
@@ -78,9 +77,9 @@ function blank(): JobWorkerRow {
   };
 }
 
-export function JobWorkersClient({ rows }: { rows: JobWorkerRow[] }) {
+export function CustomersClient({ rows }: { rows: CustomerRow[] }) {
   const router = useRouter();
-  const [editing, setEditing] = useState<JobWorkerRow | null>(null);
+  const [editing, setEditing] = useState<CustomerRow | null>(null);
   const [address, setAddress] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
@@ -118,7 +117,7 @@ export function JobWorkersClient({ rows }: { rows: JobWorkerRow[] }) {
     });
   }, [rows, search, statusFilter]);
 
-  function open(row: JobWorkerRow) {
+  function open(row: CustomerRow) {
     setEditing(row);
     setAddress(row.addressLines.join("\n"));
     setError(null);
@@ -128,7 +127,7 @@ export function JobWorkersClient({ rows }: { rows: JobWorkerRow[] }) {
   function handleGstinChange(val: string) {
     if (!editing) return;
     const gstin = val.toUpperCase();
-    const updates: Partial<JobWorkerRow> = { gstin };
+    const updates: Partial<CustomerRow> = { gstin };
 
     if (isValidGstin(gstin)) {
       const code = stateCodeFromGstin(gstin);
@@ -154,7 +153,7 @@ export function JobWorkersClient({ rows }: { rows: JobWorkerRow[] }) {
     const input: PartyInput = {
       code: editing.code,
       name: editing.name,
-      partyType: "job_worker",
+      partyType: "customer",
       gstin: editing.gstin || undefined,
       pan: editing.pan || undefined,
       addressLines: address,
@@ -198,7 +197,7 @@ export function JobWorkersClient({ rows }: { rows: JobWorkerRow[] }) {
             <Users className="h-4 w-4 text-accent" strokeWidth={1.75} />
           </div>
           <div className="mt-2 text-2xl font-semibold tracking-tight text-fg">{metrics.total}</div>
-          <p className="mt-0.5 text-xs text-fg-subtle">Job workers in master directory</p>
+          <p className="mt-0.5 text-xs text-fg-subtle">Customers in master directory</p>
         </Card>
 
         <Card className="p-4">
@@ -216,7 +215,7 @@ export function JobWorkersClient({ rows }: { rows: JobWorkerRow[] }) {
             <MapPin className="h-4 w-4 text-info" strokeWidth={1.75} />
           </div>
           <div className="mt-2 text-2xl font-semibold tracking-tight text-fg">{metrics.active}</div>
-          <p className="mt-0.5 text-xs text-fg-subtle">Vendor locations mapped for inventory</p>
+          <p className="mt-0.5 text-xs text-fg-subtle">Stock locations mapped for inventory</p>
         </Card>
 
         <Card className="p-4">
@@ -245,7 +244,7 @@ export function JobWorkersClient({ rows }: { rows: JobWorkerRow[] }) {
           </div>
           <Select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as any)}
+            onChange={(e) => setStatusFilter(e.target.value as "all" | "active" | "inactive")}
             className="w-32 shrink-0"
           >
             <option value="all">All status</option>
@@ -256,7 +255,7 @@ export function JobWorkersClient({ rows }: { rows: JobWorkerRow[] }) {
 
         <Button variant="primary" size="md" onClick={() => open(blank())}>
           <Plus className="h-4 w-4" strokeWidth={2} />
-          Register Job Worker
+          Add Customer
         </Button>
       </div>
 
@@ -264,16 +263,16 @@ export function JobWorkersClient({ rows }: { rows: JobWorkerRow[] }) {
       {filteredRows.length === 0 ? (
         <Card>
           <EmptyState
-            title={rows.length === 0 ? "No Job Workers Registered" : "No matches found"}
+            title={rows.length === 0 ? "No customers yet" : "No matches found"}
             description={
               rows.length === 0
-                ? "Register job workers to send goods out via job-work challans and track lying inventory."
-                : "Try clearing search filters or registering a new job worker."
+                ? "Add the principals who send you goods, so inward challans and held stock can be tracked."
+                : "Try clearing search filters or adding a new customer."
             }
             action={
               <Button variant="primary" size="sm" onClick={() => open(blank())}>
                 <Plus className="h-3.5 w-3.5" strokeWidth={2} />
-                Register Job Worker
+                Add Customer
               </Button>
             }
           />
@@ -284,7 +283,7 @@ export function JobWorkersClient({ rows }: { rows: JobWorkerRow[] }) {
             <thead>
               <tr>
                 <Th>Code</Th>
-                <Th>Job Worker Name</Th>
+                <Th>Customer name</Th>
                 <Th>GSTIN / PAN</Th>
                 <Th>Stock Location</Th>
                 <Th>Contact Details</Th>
@@ -387,8 +386,8 @@ export function JobWorkersClient({ rows }: { rows: JobWorkerRow[] }) {
       <SidePanel
         open={editing !== null}
         onOpenChange={(isOpen) => !isOpen && setEditing(null)}
-        title={editing?._id ? `Edit ${editing.name}` : "Register New Job Worker"}
-        description="Registering a job worker provisions their vendor stock location for inventory balance tracking."
+        title={editing?._id ? `Edit ${editing.name}` : "New customer"}
+        description="Adding a customer provisions their stock location, which is how held inventory is tracked."
         footer={
           <>
             <Button variant="ghost" onClick={() => setEditing(null)} disabled={pending}>
@@ -398,8 +397,8 @@ export function JobWorkersClient({ rows }: { rows: JobWorkerRow[] }) {
               {pending
                 ? "Saving..."
                 : editing?._id
-                ? "Update Job Worker"
-                : "Register Job Worker"}
+                ? "Save customer"
+                : "Add Customer"}
             </Button>
           </>
         }
@@ -416,11 +415,11 @@ export function JobWorkersClient({ rows }: { rows: JobWorkerRow[] }) {
             <div className="rounded-lg border border-border bg-surface p-3.5 space-y-3">
               <div className="flex items-center gap-2 pb-2 border-b border-border text-xs font-semibold text-fg uppercase tracking-wider">
                 <Building2 className="h-4 w-4 text-accent" />
-                Vendor Identity
+                Customer Identity
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="Vendor / Short Code" required error={fieldErrors.code}>
+                <Field label="Customer / Short Code" required error={fieldErrors.code}>
                   <Input
                     value={editing.code}
                     onChange={(e) => setEditing({ ...editing, code: e.target.value.toUpperCase() })}
@@ -482,7 +481,7 @@ export function JobWorkersClient({ rows }: { rows: JobWorkerRow[] }) {
                   type="email"
                   value={editing.email}
                   onChange={(e) => setEditing({ ...editing, email: e.target.value })}
-                  placeholder="vendor@bestenterprises.com"
+                  placeholder="accounts@customer.com"
                 />
               </Field>
 

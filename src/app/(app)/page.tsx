@@ -39,7 +39,7 @@ export default async function DashboardPage() {
         title="Dashboard"
         subtitle={
           setup.isReady
-            ? "Where your stock is right now, and what needs chasing."
+            ? "What you are holding, and what needs to go back."
             : "Let's get your master data in first."
         }
       />
@@ -49,16 +49,16 @@ export default async function DashboardPage() {
       <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Tile
           icon={<Factory className="h-4 w-4" strokeWidth={1.75} />}
-          label="In the plant"
+          label="In our factory"
           value={`${formatQty(data.plantQty)} pcs`}
-          detail={`≈ ${formatINRShort(data.plantValue)} at standard value`}
+          detail={`Customer goods we are holding · ≈ ${formatINRShort(data.plantValue)} declared`}
           href="/stock"
         />
         <Tile
           icon={<Truck className="h-4 w-4" strokeWidth={1.75} />}
-          label="With job workers"
-          value={`${formatQty(data.vendorQty)} pcs`}
-          detail={`${formatINRShort(data.vendorValue)} at risk across ${data.openChallans} open challans`}
+          label="Returned to customers"
+          value={`${formatQty(data.offSiteQty)} pcs`}
+          detail={`${formatINRShort(data.pendingValue)} still to return across ${data.openChallans} open challans`}
           href="/challans"
           tone="warning"
         />
@@ -76,7 +76,7 @@ export default async function DashboardPage() {
         />
         <Tile
           icon={<Receipt className="h-4 w-4" strokeWidth={1.75} />}
-          label="Bills to verify"
+          label="Supplier bills to verify"
           value={String(data.unverifiedBills)}
           detail="Job-work invoices not yet approved"
           href="/purchase-invoices"
@@ -86,13 +86,13 @@ export default async function DashboardPage() {
       <div className="mb-5 grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader
-            title="How long stock has been out"
-            subtitle="Value pending with job workers, by age of the challan."
+            title="How long we have held it"
+            subtitle="Customer goods in our factory, by age of the inward challan."
           />
           <div className="space-y-2.5 p-4">
             {data.aging.every((bucket) => bucket.lines === 0) ? (
               <p className="py-6 text-center text-sm text-fg-muted">
-                Nothing is pending with job workers.
+                No customer goods are in the factory.
               </p>
             ) : (
               data.aging.map((bucket) => (
@@ -130,22 +130,22 @@ export default async function DashboardPage() {
         </Card>
 
         <Card>
-          <CardHeader title="Pending by job worker" />
-          {data.vendorPending.length === 0 ? (
-            <EmptyState title="Nothing out with job workers" />
+          <CardHeader title="Held for each customer" />
+          {data.heldPerCustomer.length === 0 ? (
+            <EmptyState title="No customer goods on hand" />
           ) : (
             <TableWrap className="rounded-none border-0">
               <Table>
                 <thead>
                   <tr>
-                    <Th>Job worker</Th>
+                    <Th>Customer</Th>
                     <ThNum>Pending qty</ThNum>
                     <ThNum>Value</ThNum>
                     <Th>Oldest</Th>
                   </tr>
                 </thead>
                 <tbody>
-                  {data.vendorPending.map((vendor) => (
+                  {data.heldPerCustomer.map((vendor) => (
                     <tr key={vendor.partyId} className="hover:bg-surface-2">
                       <Td>{vendor.partyName}</Td>
                       <TdNum>{formatQty(vendor.qty)}</TdNum>
@@ -165,8 +165,8 @@ export default async function DashboardPage() {
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader
-            title="Chase these first"
-            subtitle="Challan lines closest to the one-year GST deadline."
+            title="Return these first"
+            subtitle="Inward challan lines closest to the one-year GST deadline."
           />
           {data.urgent.length === 0 ? (
             <EmptyState title="Nothing pending" />

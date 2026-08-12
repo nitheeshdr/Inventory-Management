@@ -1,17 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { AlertTriangle, Plus, Trash2 } from "lucide-react";
 import type { ItemOption } from "@/app/api/items/route";
 import type { PartyOption } from "@/lib/queries/masters";
-import type { BillableLine } from "@/lib/queries/verification";
 import {
   Button,
   Card,
   CardHeader,
-  Chip,
-  EmptyState,
   Field,
   Input,
   Select,
@@ -24,10 +21,9 @@ import {
   ThNum,
 } from "@/components/ui/primitives";
 import { ItemCombobox } from "@/components/item-combobox";
-import { SERVICE_GST_RATE, SERVICE_HSN } from "@/lib/constants";
 import { lineTaxable, roundOffDelta, splitTax } from "@/lib/gst";
 import { formatAmount, round2, toDateInputValue } from "@/lib/format";
-import { loadBillableWork, savePurchaseInvoice, type PurchaseInvoiceInput } from "./actions";
+import { savePurchaseInvoice, type PurchaseInvoiceInput } from "./actions";
 
 interface LineRow {
   key: string;
@@ -46,8 +42,8 @@ function emptyRow(): LineRow {
     qty: "",
     rate: "",
     discountPct: "0",
-    taxPct: String(SERVICE_GST_RATE),
-    hsnCode: SERVICE_HSN,
+    taxPct: "18",
+    hsnCode: "",
   };
 }
 
@@ -64,8 +60,6 @@ export interface InvoiceFormValues {
   vehicleNo?: string;
   transport?: string;
   destination?: string;
-  periodFrom: string;
-  periodTo: string;
   notes?: string;
   lines: {
     itemId: string;
@@ -77,15 +71,10 @@ export interface InvoiceFormValues {
   }[];
 }
 
-/** Default period: the calendar month containing today. */
-function defaultPeriod() {
-  const now = new Date();
-  return {
-    from: toDateInputValue(new Date(now.getFullYear(), now.getMonth(), 1)),
-    to: toDateInputValue(new Date(now.getFullYear(), now.getMonth() + 1, 0)),
-  };
-}
-
+/**
+ * A bill from one of our own suppliers. No quantity or rate checking: that is a
+ * principal's tool for auditing a job worker, and here we are the job worker.
+ */
 export function PurchaseInvoiceForm({
   items,
   parties,
@@ -97,10 +86,8 @@ export function PurchaseInvoiceForm({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [loadingWork, startLoadingWork] = useTransition();
 
   const itemById = useMemo(() => new Map(items.map((item) => [item._id, item])), [items]);
-  const period = defaultPeriod();
 
   const [header, setHeader] = useState({
     invoiceNo: initial?.invoiceNo ?? "",
@@ -114,8 +101,6 @@ export function PurchaseInvoiceForm({
     vehicleNo: initial?.vehicleNo ?? "",
     transport: initial?.transport ?? "",
     destination: initial?.destination ?? "",
-    periodFrom: initial?.periodFrom ?? period.from,
-    periodTo: initial?.periodTo ?? period.to,
     notes: initial?.notes ?? "",
   });
 
@@ -133,50 +118,13 @@ export function PurchaseInvoiceForm({
       : [emptyRow()],
   );
 
-  const [billable, setBillable] = useState<BillableLine[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-
-  const refreshWork = useMemo(
-    () => (partyId: string, from: string, to: string) => {
-      if (!partyId || !from || !to) return;
-      startLoadingWork(async () => {
-        setBillable(await loadBillableWork(partyId, from, to));
-      });
-    },
-    [],
-  );
-
-  useEffect(() => {
-    refreshWork(header.partyId, header.periodFrom, header.periodTo);
-  }, [header.partyId, header.periodFrom, header.periodTo, refreshWork]);
-
-  const billableByItem = useMemo(
-    () => new Map(billable.map((row) => [row.itemId, row])),
-    [billable],
-  );
 
   function patchRow(key: string, patch: Partial<LineRow>) {
     setRows((prev) => prev.map((row) => (row.key === key ? { ...row, ...patch } : row)));
   }
 
-  function fillFromWork() {
-    const lines = billable
-      .filter((row) => row.unbilledQty > 0)
-      .map((row) => ({
-        key: crypto.randomUUID(),
-        item: itemById.get(row.itemId) ?? null,
-        qty: String(row.unbilledQty),
-        rate: row.routeRate !== null ? String(row.routeRate) : "",
-        discountPct: "0",
-        taxPct: String(SERVICE_GST_RATE),
-        hsnCode: SERVICE_HSN,
-      }));
-    setRows(lines.length > 0 ? lines : [emptyRow()]);
-  }
-
-  // Uses the same per-line splitTax the server does, so the figure on screen is
-  // the figure that gets saved.
   const totals = useMemo(() => {
     let subtotal = 0;
     let cgst = 0;
@@ -212,8 +160,8 @@ export function PurchaseInvoiceForm({
         qty: Number(row.qty),
         rate: Number(row.rate) || 0,
         discountPct: Number(row.discountPct) || 0,
-        taxPct: Number(row.taxPct) || SERVICE_GST_RATE,
-        hsnCode: row.hsnCode || SERVICE_HSN,
+        taxPct: Number(row.taxPct) || 18,
+        hsnCode: row.hsnCode,
       }));
 
     if (lines.length === 0) {
@@ -244,13 +192,15 @@ export function PurchaseInvoiceForm({
       )}
 
       <Card>
-        <CardHeader title="Invoice details" subtitle="Copy the numbers off the vendor's bill." />
+        <CardHeader
+          title="Bill details"
+          subtitle="Copy the numbers off the supplier's invoice."
+        />
         <div className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-4">
           <Field label="Invoice no" required error={fieldErrors.invoiceNo}>
             <Input
               value={header.invoiceNo}
               onChange={(e) => setHeader({ ...header, invoiceNo: e.target.value })}
-              placeholder="BE/26-27/0344"
               className="font-mono"
             />
           </Field>
@@ -261,11 +211,12 @@ export function PurchaseInvoiceForm({
               onChange={(e) => setHeader({ ...header, invoiceDate: e.target.value })}
             />
           </Field>
-          <Field label="Job worker" required>
+          <Field label="Supplier" required>
             <Select
               value={header.partyId}
               onChange={(e) => setHeader({ ...header, partyId: e.target.value })}
             >
+              {parties.length === 0 && <option value="">No suppliers yet</option>}
               {parties.map((party) => (
                 <option key={party._id} value={party._id}>
                   {party.name}
@@ -298,7 +249,6 @@ export function PurchaseInvoiceForm({
             <Input
               value={header.poRefs}
               onChange={(e) => setHeader({ ...header, poRefs: e.target.value })}
-              placeholder="4500738933, 4500738934"
               className="font-mono"
             />
           </Field>
@@ -314,91 +264,7 @@ export function PurchaseInvoiceForm({
 
       <Card>
         <CardHeader
-          title="Work this bill covers"
-          subtitle="Processed goods received back in this period — the basis for checking the bill."
-          action={
-            <div className="flex items-end gap-2">
-              <Field label="From">
-                <Input
-                  type="date"
-                  value={header.periodFrom}
-                  onChange={(e) => setHeader({ ...header, periodFrom: e.target.value })}
-                  className="h-8 w-36"
-                />
-              </Field>
-              <Field label="To">
-                <Input
-                  type="date"
-                  value={header.periodTo}
-                  onChange={(e) => setHeader({ ...header, periodTo: e.target.value })}
-                  className="h-8 w-36"
-                />
-              </Field>
-              <Button size="sm" variant="outline" onClick={fillFromWork} disabled={loadingWork}>
-                <RefreshCw
-                  className={`h-3.5 w-3.5 ${loadingWork ? "animate-spin" : ""}`}
-                  strokeWidth={1.75}
-                />
-                Fill lines from work
-              </Button>
-            </div>
-          }
-        />
-        {billable.length === 0 ? (
-          <EmptyState
-            title="No processed goods received in this period"
-            description="Record the return notes first, otherwise there is nothing to check the bill against."
-          />
-        ) : (
-          <TableWrap className="rounded-none border-0">
-            <Table>
-              <thead>
-                <tr>
-                  <Th>Item</Th>
-                  <Th>Process</Th>
-                  <ThNum>Received</ThNum>
-                  <ThNum>Already billed</ThNum>
-                  <ThNum>Unbilled</ThNum>
-                  <ThNum>Agreed rate</ThNum>
-                  <ThNum>Expected value</ThNum>
-                </tr>
-              </thead>
-              <tbody>
-                {billable.map((row) => (
-                  <tr key={row.itemId} className="hover:bg-surface-2">
-                    <Td>
-                      <span className="font-mono text-[13px]">{row.itemCode}</span>
-                      <span className="ml-1.5 text-xs text-fg-muted">{row.description}</span>
-                    </Td>
-                    <Td className="text-xs text-fg-muted">
-                      {row.processName ?? <Chip tone="warning">No route</Chip>}
-                      {row.processName && !row.routeConfirmed && (
-                        <Chip tone="warning" className="ml-1.5">
-                          Unconfirmed
-                        </Chip>
-                      )}
-                    </Td>
-                    <TdNum>{row.processedQty}</TdNum>
-                    <TdNum className="text-fg-muted">{row.billedQty}</TdNum>
-                    <TdNum className="font-medium">{row.unbilledQty}</TdNum>
-                    <TdNum>{row.routeRate === null ? "—" : formatAmount(row.routeRate)}</TdNum>
-                    <TdNum className="text-fg-muted">
-                      {row.routeRate === null
-                        ? "—"
-                        : formatAmount(round2(row.unbilledQty * row.routeRate))}
-                    </TdNum>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
-          </TableWrap>
-        )}
-      </Card>
-
-      <Card>
-        <CardHeader
           title="Billed lines"
-          subtitle="Variances against received quantity and agreed rate are highlighted as you type."
           action={
             <Button size="sm" variant="outline" onClick={() => setRows((p) => [...p, emptyRow()])}>
               <Plus className="h-3.5 w-3.5" strokeWidth={2} />
@@ -418,22 +284,16 @@ export function PurchaseInvoiceForm({
                 <ThNum className="w-20">Disc %</ThNum>
                 <ThNum className="w-20">Tax %</ThNum>
                 <ThNum className="w-32">Taxable</ThNum>
-                <Th className="w-56">Check</Th>
                 <Th className="w-10" />
               </tr>
             </thead>
             <tbody>
               {rows.map((row, index) => {
-                const qty = Number(row.qty) || 0;
-                const rate = Number(row.rate) || 0;
-                const discount = Number(row.discountPct) || 0;
-                const gross = qty * rate;
-                const taxable = round2(gross - (gross * discount) / 100);
-
-                const work = row.item ? billableByItem.get(row.item._id) : undefined;
-                const qtyOver = work ? round2(qty - work.unbilledQty) : 0;
-                const rateOff =
-                  work && work.routeRate !== null ? round2(rate - work.routeRate) : 0;
+                const taxable = lineTaxable(
+                  Number(row.qty) || 0,
+                  Number(row.rate) || 0,
+                  Number(row.discountPct) || 0,
+                );
 
                 return (
                   <tr key={row.key}>
@@ -442,17 +302,13 @@ export function PurchaseInvoiceForm({
                       <ItemCombobox
                         items={items}
                         value={row.item}
-                        onSelect={(item) => {
-                          const match = billableByItem.get(item._id);
+                        onSelect={(item) =>
                           patchRow(row.key, {
                             item,
-                            rate:
-                              row.rate ||
-                              (match?.routeRate !== null && match?.routeRate !== undefined
-                                ? String(match.routeRate)
-                                : ""),
-                          });
-                        }}
+                            hsnCode: row.hsnCode || item.hsnCode,
+                            taxPct: row.taxPct || String(item.gstRate || 18),
+                          })
+                        }
                       />
                     </Td>
                     <Td>
@@ -496,31 +352,6 @@ export function PurchaseInvoiceForm({
                       />
                     </Td>
                     <TdNum className="font-medium">{formatAmount(taxable)}</TdNum>
-                    <Td className="space-y-1">
-                      {!row.item ? (
-                        <span className="text-xs text-fg-subtle">—</span>
-                      ) : !work ? (
-                        <Chip tone="danger">Nothing received for this code</Chip>
-                      ) : (
-                        <>
-                          {qtyOver > 0 ? (
-                            <Chip tone="danger">Over-billed {qtyOver} pcs</Chip>
-                          ) : (
-                            <Chip tone="success">Qty OK</Chip>
-                          )}
-                          {work.routeRate === null ? (
-                            <Chip tone="warning">No agreed rate</Chip>
-                          ) : rateOff !== 0 ? (
-                            <Chip tone="danger">
-                              Rate {rateOff > 0 ? "+" : ""}
-                              {rateOff}
-                            </Chip>
-                          ) : (
-                            <Chip tone="success">Rate OK</Chip>
-                          )}
-                        </>
-                      )}
-                    </Td>
                     <Td>
                       <button
                         type="button"
@@ -566,7 +397,7 @@ export function PurchaseInvoiceForm({
           Cancel
         </Button>
         <Button variant="primary" onClick={submit} disabled={pending}>
-          {pending ? "Saving…" : initial?._id ? "Save changes" : "Save invoice"}
+          {pending ? "Saving…" : initial?._id ? "Save changes" : "Save bill"}
         </Button>
       </div>
     </div>

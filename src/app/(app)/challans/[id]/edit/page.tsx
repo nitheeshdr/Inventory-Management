@@ -24,7 +24,7 @@ export default async function EditChallanPage({
   if (!challan) notFound();
   if (challan.status === "cancelled") notFound();
 
-  const [items, parties] = await Promise.all([getItemOptions(), getParties("job_worker")]);
+  const [items, parties] = await Promise.all([getItemOptions(), getParties("customer")]);
 
   return (
     <>

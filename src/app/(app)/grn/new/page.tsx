@@ -20,7 +20,7 @@ export default async function NewGrnPage({
   const company = await getCompany();
   const [items, parties, routes, pendingLines, suggestedNo] = await Promise.all([
     getItemOptions(),
-    getParties("job_worker"),
+    getParties("customer"),
     getRoutes(),
     getPendingChallanLines(),
     nextDocNumber(Grn, "grnNo", company?.grnPrefix ?? "GRN"),
@@ -29,7 +29,7 @@ export default async function NewGrnPage({
   const missing = [
     ...(items.length === 0 ? [{ label: "No item codes yet", href: "/masters/items" }] : []),
     ...(parties.length === 0
-      ? [{ label: "No job workers yet", href: "/masters/parties" }]
+      ? [{ label: "No customers yet", href: "/masters/parties" }]
       : []),
   ];
 
@@ -43,8 +43,8 @@ export default async function NewGrnPage({
           <ArrowLeft className="h-3.5 w-3.5" strokeWidth={1.75} />
           Back to return notes
         </Link>
-        <PageHeader title="New return note" />
-        <SetupRequired title="A return note needs items and a job worker" missing={missing} />
+        <PageHeader title="New outward return" />
+        <SetupRequired title="An outward return needs items and a customer" missing={missing} />
       </>
     );
   }
@@ -59,8 +59,8 @@ export default async function NewGrnPage({
         Back to return notes
       </Link>
       <PageHeader
-        title="New return note"
-        subtitle="Goods coming back from a job worker — processed pieces, rejections and anything unworked."
+        title="New outward return"
+        subtitle="Goods going back to the principal — processed pieces, rejections and anything unworked."
       />
       <GrnForm
         items={items}

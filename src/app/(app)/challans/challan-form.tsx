@@ -188,7 +188,7 @@ export function ChallanForm({
       <Card>
         <CardHeader
           title="Challan details"
-          subtitle="Challan numbers come from your existing plant software — type the number as printed."
+          subtitle="Type the challan number exactly as printed on the customer's delivery challan."
         />
         <div className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-4">
           <Field label="Challan no" required error={fieldErrors.challanNo}>
@@ -206,12 +206,12 @@ export function ChallanForm({
               onChange={(e) => setHeader({ ...header, challanDate: e.target.value })}
             />
           </Field>
-          <Field label="Job worker" required error={fieldErrors.partyId}>
+          <Field label="Customer" required error={fieldErrors.partyId}>
             <Select
               value={header.partyId}
               onChange={(e) => setHeader({ ...header, partyId: e.target.value })}
             >
-              {parties.length === 0 && <option value="">No job workers yet</option>}
+              {parties.length === 0 && <option value="">No customers yet</option>}
               {parties.map((party) => (
                 <option key={party._id} value={party._id}>
                   {party.name}

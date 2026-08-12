@@ -6,7 +6,6 @@ import {
   Button,
   Card,
   CardHeader,
-  Chip,
   PageHeader,
   Table,
   TableWrap,
@@ -102,22 +101,18 @@ export default async function PurchaseInvoiceDetailPage({
         </div>
       )}
 
-      {invoice.status === "approved" && invoice.flags.length === 0 && (
+      {invoice.status === "approved" && (
         <div className="mb-4 flex items-center gap-1.5 rounded-md border border-success/30 bg-success-soft px-3 py-2.5 text-sm text-success">
           <Check className="h-4 w-4" strokeWidth={2} />
-          Quantities and rates match what was received. Approved for payment.
+          Approved for payment.
         </div>
       )}
 
       <Card className="mb-4 p-4">
         <DetailGrid>
-          <DetailField label="Job worker" value={party?.name} />
-          <DetailField label="Their GSTIN" value={party?.gstin} mono />
+          <DetailField label="Supplier" value={party?.name} />
+          <DetailField label="Supplier GSTIN" value={party?.gstin} mono />
           <DetailField label="Invoice date" value={formatDate(invoice.invoiceDate)} />
-          <DetailField
-            label="Period covered"
-            value={`${formatDate(invoice.periodFrom)} – ${formatDate(invoice.periodTo)}`}
-          />
           <DetailField label="ACK no" value={invoice.ackNo} mono />
           <DetailField label="ACK date" value={formatDate(invoice.ackDate)} />
           <DetailField label="Vehicle" value={invoice.vehicleNo} mono />
@@ -144,13 +139,10 @@ export default async function PurchaseInvoiceDetailPage({
                 <Th className="w-10">#</Th>
                 <Th>Item</Th>
                 <Th>HSN</Th>
-                <ThNum>Billed qty</ThNum>
-                <ThNum>Received</ThNum>
+                <ThNum>Qty</ThNum>
                 <ThNum>Rate</ThNum>
-                <ThNum>Agreed rate</ThNum>
                 <ThNum>Taxable</ThNum>
                 <ThNum>Amount</ThNum>
-                <Th>Check</Th>
               </tr>
             </thead>
             <tbody>
@@ -168,27 +160,9 @@ export default async function PurchaseInvoiceDetailPage({
                   </Td>
                   <Td className="font-mono text-xs text-fg-muted">{line.hsnCode}</Td>
                   <TdNum>{formatQty(line.qty)}</TdNum>
-                  <TdNum className="text-fg-muted">{formatQty(line.matchedGrnQty)}</TdNum>
                   <TdNum>{formatAmount(line.rate)}</TdNum>
-                  <TdNum className="text-fg-muted">
-                    {line.routeRate === undefined ? "—" : formatAmount(line.routeRate)}
-                  </TdNum>
                   <TdNum>{formatAmount(line.taxableAmount)}</TdNum>
                   <TdNum className="font-medium">{formatAmount(line.amount)}</TdNum>
-                  <Td className="space-x-1">
-                    {line.qtyVariance > 0 ? (
-                      <Chip tone="danger">+{formatQty(line.qtyVariance)} qty</Chip>
-                    ) : null}
-                    {line.rateVariance !== 0 ? (
-                      <Chip tone="danger">
-                        {line.rateVariance > 0 ? "+" : ""}
-                        {formatAmount(line.rateVariance)} rate
-                      </Chip>
-                    ) : null}
-                    {line.qtyVariance <= 0 && line.rateVariance === 0 && (
-                      <Chip tone="success">OK</Chip>
-                    )}
-                  </Td>
                 </tr>
               ))}
             </tbody>

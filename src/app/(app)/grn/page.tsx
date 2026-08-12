@@ -32,8 +32,8 @@ export default async function GrnPage() {
   return (
     <>
       <PageHeader
-        title="Return notes"
-        subtitle="Goods received back from job workers, allocated against the challans they left on."
+        title="Outward returns"
+        subtitle="Goods returned to principals, allocated against the inward challans they arrived on."
         action={
           <Link href="/grn/new">
             <Button variant="primary" size="sm">
@@ -48,7 +48,7 @@ export default async function GrnPage() {
         <TableWrap>
           <EmptyState
             title="No return notes yet"
-            description="Record one when a job worker sends goods back."
+            description="Record one when you send processed goods back."
             action={
               <Link href="/grn/new">
                 <Button variant="primary" size="sm">
@@ -66,7 +66,7 @@ export default async function GrnPage() {
                 <Th>GRN no</Th>
                 <Th>Vendor note</Th>
                 <Th>Date</Th>
-                <Th>Job worker</Th>
+                <Th>Customer</Th>
                 <ThNum>Lines</ThNum>
                 <ThNum>Processed</ThNum>
                 <ThNum>Rejected</ThNum>
@@ -112,7 +112,7 @@ export default async function GrnPage() {
                       {note.status === "cancelled" ? (
                         <DocStatusChip status="cancelled" />
                       ) : (
-                        <Chip tone="success">Received</Chip>
+                        <Chip tone="success">Despatched</Chip>
                       )}
                     </Td>
                   </tr>

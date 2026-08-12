@@ -11,6 +11,8 @@
     "bootstrap": "tsx src/db/bootstrap.ts",
     "bootstrap:reset": "tsx src/db/bootstrap.ts --reset",
     "import-docs": "tsx src/db/import-documents.ts",
+    "import-rates": "tsx src/db/import-material-rates.ts",
+    "switch-role": "tsx src/db/switch-to-job-worker.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -49,6 +51,7 @@
     "tailwindcss": "^4",
     "tsx": "^4.23.12",
     "typescript": "^5",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "xlsx": "^0.18.5"
   }
 }

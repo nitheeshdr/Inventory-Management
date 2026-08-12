@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export default async function NewChallanPage() {
   const [items, parties] = await Promise.all([
     getItemOptions(),
-    getParties("job_worker"),
+    getParties("customer"),
   ]);
 
   const missing = [
@@ -18,7 +18,7 @@ export default async function NewChallanPage() {
       ? [{ label: "No item codes yet", href: "/masters/items" }]
       : []),
     ...(parties.length === 0
-      ? [{ label: "No job workers yet", href: "/masters/parties" }]
+      ? [{ label: "No customers yet", href: "/masters/parties" }]
       : []),
   ];
 
@@ -32,8 +32,8 @@ export default async function NewChallanPage() {
           <ArrowLeft className="h-3.5 w-3.5" strokeWidth={1.75} />
           Back to challans
         </Link>
-        <PageHeader title="New job-work challan" />
-        <SetupRequired title="A challan needs items and a job worker" missing={missing} />
+        <PageHeader title="New inward challan" />
+        <SetupRequired title="An inward challan needs items and a customer" missing={missing} />
       </>
     );
   }
@@ -48,8 +48,8 @@ export default async function NewChallanPage() {
         Back to challans
       </Link>
       <PageHeader
-        title="New job-work challan"
-        subtitle="Goods leaving the plant for a job worker under Section 143 — returnable within one year."
+        title="New inward challan"
+        subtitle="Goods arriving from a principal for processing under Section 143 — returnable within one year."
       />
       <ChallanForm items={items} parties={parties} />
     </>

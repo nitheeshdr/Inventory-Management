@@ -19,7 +19,7 @@ export type DocStatus = (typeof DOC_STATUSES)[number];
 export const INVOICE_STATUSES = ["draft", "verified", "flagged", "approved", "cancelled"] as const;
 export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];
 
-/** What a job worker sent back. Only `processed` lines convert an item code. */
+/** What we send back. Only `processed` lines convert an item code. */
 export const GRN_LINE_KINDS = ["processed", "rejected", "unprocessed", "scrap"] as const;
 export type GrnLineKind = (typeof GRN_LINE_KINDS)[number];
 
@@ -40,8 +40,8 @@ export const DOC_TYPES = [
 export type DocType = (typeof DOC_TYPES)[number];
 
 export const DOC_TYPE_LABELS: Record<DocType, string> = {
-  job_work_challan: "Job Work Challan",
-  grn: "Return Note / GRN",
+  job_work_challan: "Inward Challan",
+  grn: "Outward Return",
   sales_invoice: "Sales Invoice",
   stock_adjustment: "Stock Adjustment",
 };

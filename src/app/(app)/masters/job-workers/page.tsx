@@ -1,15 +1,15 @@
 import { connectDb } from "@/db/connect";
 import { Party, Location, ProcessRoute } from "@/db/models";
-import { JobWorkersClient, type JobWorkerRow } from "./job-workers-client";
+import { CustomersClient, type CustomerRow } from "./job-workers-client";
 
 export const dynamic = "force-dynamic";
 
-export default async function JobWorkersMasterPage() {
+export default async function CustomersMasterPage() {
   await connectDb();
 
   const [workers, locations, routes] = await Promise.all([
-    Party.find({ partyType: "job_worker" }).sort({ code: 1, name: 1 }).lean(),
-    Location.find({ kind: "job_worker" }).lean(),
+    Party.find({ partyType: "customer" }).sort({ code: 1, name: 1 }).lean(),
+    Location.find({ kind: "customer" }).lean(),
     ProcessRoute.find({ isActive: true }).lean(),
   ]);
 
@@ -28,11 +28,11 @@ export default async function JobWorkersMasterPage() {
     }
   }
 
-  const rows: JobWorkerRow[] = workers.map((w) => ({
+  const rows: CustomerRow[] = workers.map((w) => ({
     _id: w._id.toString(),
     code: w.code,
     name: w.name,
-    partyType: "job_worker",
+    partyType: "customer",
     gstin: w.gstin ?? "",
     pan: w.pan ?? (w.gstin && w.gstin.length === 15 ? w.gstin.substring(2, 12) : ""),
     addressLines: w.addressLines ?? [],
@@ -50,5 +50,5 @@ export default async function JobWorkersMasterPage() {
     routeCount: routeCountMap.get(w._id.toString()) ?? 0,
   }));
 
-  return <JobWorkersClient rows={rows} />;
+  return <CustomersClient rows={rows} />;
 }

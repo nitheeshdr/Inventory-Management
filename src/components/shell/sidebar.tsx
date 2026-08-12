@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import {
   ArrowLeftRight,
   Boxes,
-  FileInput,
   FileOutput,
   LayoutDashboard,
   Package,
@@ -27,16 +26,16 @@ const NAV_GROUPS: {
     ],
   },
   {
-    label: "Job work",
+    label: "Job work received",
     items: [
-      { href: "/challans", label: "Outward challans", icon: Truck },
-      { href: "/grn", label: "Return notes", icon: FileInput },
-      { href: "/purchase-invoices", label: "Job-work bills", icon: Receipt },
+      { href: "/challans", label: "Inward challans", icon: Truck },
+      { href: "/grn", label: "Outward returns", icon: FileOutput },
+      { href: "/purchase-invoices", label: "Supplier bills", icon: Receipt },
     ],
   },
   {
     label: "Sales",
-    items: [{ href: "/sales-invoices", label: "Sales invoices", icon: FileOutput }],
+    items: [{ href: "/sales-invoices", label: "Job-work invoices", icon: Receipt }],
   },
   {
     label: "Reports",

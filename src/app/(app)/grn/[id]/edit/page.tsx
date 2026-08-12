@@ -26,7 +26,7 @@ export default async function EditGrnPage({
 
   const [items, parties, routes, pendingLines] = await Promise.all([
     getItemOptions(),
-    getParties("job_worker"),
+    getParties("customer"),
     getRoutes(),
     // This note's own allocations are excluded so its lines stay editable.
     getPendingChallanLines({ excludeGrnId: id }),

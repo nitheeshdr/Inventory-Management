@@ -31,7 +31,7 @@ export default async function StockAsOnPage({
   const totals = rows.reduce(
     (acc, row) => ({
       plant: acc.plant + row.plantQty,
-      vendor: acc.vendor + row.vendorQty,
+      vendor: acc.vendor + row.offSiteQty,
       total: acc.total + row.totalQty,
       value: acc.value + row.totalValue,
     }),
@@ -72,8 +72,8 @@ export default async function StockAsOnPage({
               <tr>
                 <Th>Item code</Th>
                 <Th>Description</Th>
-                <ThNum>In plant</ThNum>
-                <ThNum>With job workers</ThNum>
+                <ThNum>In our factory</ThNum>
+                <ThNum>With customer</ThNum>
                 <ThNum>Total</ThNum>
                 <ThNum>Value</ThNum>
               </tr>
@@ -84,7 +84,7 @@ export default async function StockAsOnPage({
                   <Td className="font-mono text-[13px]">{row.itemCode}</Td>
                   <Td className="max-w-[24rem] truncate">{row.description}</Td>
                   <TdNum>{formatQty(row.plantQty)}</TdNum>
-                  <TdNum className="text-warning">{formatQty(row.vendorQty)}</TdNum>
+                  <TdNum className="text-warning">{formatQty(row.offSiteQty)}</TdNum>
                   <TdNum className="font-medium">{formatQty(row.totalQty)}</TdNum>
                   <TdNum className="text-fg-muted">{formatAmount(row.totalValue)}</TdNum>
                 </tr>

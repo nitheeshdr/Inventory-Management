@@ -27,9 +27,9 @@ function quarterBounds(reference: Date) {
 }
 
 /**
- * Source data for the quarterly ITC-04 return: Table 4 (goods sent to job
- * workers) and Table 5 (goods received back). This is an extract to work from,
- * not a filed return — the numbers still go into the GST portal by hand.
+ * ITC-04 is filed by the principal, not by us. This is the extract they need
+ * each quarter: what they sent us, and what we sent back. Hand it over or use it
+ * to check theirs — nothing here is filed from this app.
  */
 export default async function Itc04Page({
   searchParams,
@@ -92,25 +92,25 @@ export default async function Itc04Page({
             Show period
           </button>
           <p className="ml-auto text-xs text-fg-muted">
-            Defaults to the current quarter. Figures are an extract to file from, not a return.
+            Defaults to the current quarter. These are your customer&rsquo;s ITC-04 figures, not yours to file.
           </p>
         </form>
       </Card>
 
       <Card>
         <CardHeader
-          title="Table 4 — Goods sent to job workers"
+          title="Table 4 — Goods your customer sent you"
           subtitle={`${challans.length} challans · ${formatQty(sentTotals.qty)} pcs · ${formatAmount(sentTotals.value)}`}
         />
         {challans.length === 0 ? (
-          <EmptyState title="No challans issued in this period" />
+          <EmptyState title="No challans received in this period" />
         ) : (
           <TableWrap className="rounded-none border-0">
             <Table>
               <thead>
                 <tr>
-                  <Th>Job worker GSTIN</Th>
-                  <Th>Job worker</Th>
+                  <Th>Customer GSTIN</Th>
+                  <Th>Customer</Th>
                   <Th>Challan no</Th>
                   <Th>Challan date</Th>
                   <Th>Item</Th>
@@ -157,20 +157,20 @@ export default async function Itc04Page({
 
       <Card>
         <CardHeader
-          title="Table 5 — Goods received back from job workers"
+          title="Table 5 — Goods you returned"
           subtitle={`${grns.length} return notes · ${formatQty(receivedQty)} pcs`}
         />
         {grns.length === 0 ? (
-          <EmptyState title="No goods received back in this period" />
+          <EmptyState title="No goods returned in this period" />
         ) : (
           <TableWrap className="rounded-none border-0">
             <Table>
               <thead>
                 <tr>
-                  <Th>Job worker GSTIN</Th>
-                  <Th>Job worker</Th>
-                  <Th>Original challan</Th>
-                  <Th>Return note</Th>
+                  <Th>Customer GSTIN</Th>
+                  <Th>Customer</Th>
+                  <Th>Their challan</Th>
+                  <Th>Our return note</Th>
                   <Th>Date</Th>
                   <Th>Item received</Th>
                   <Th>Nature</Th>

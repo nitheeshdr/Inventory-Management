@@ -5,25 +5,23 @@ import { Types } from "mongoose";
 import { z } from "zod";
 import { connectDb } from "@/db/connect";
 import { CompanyProfile, Item, Party, PurchaseInvoice } from "@/db/models";
-import { computeVariance, getBillableWork } from "@/lib/queries/verification";
 import { isInterState, lineTaxable, roundOffDelta, splitTax } from "@/lib/gst";
 import { round2, round3 } from "@/lib/format";
-import { SERVICE_GST_RATE, SERVICE_HSN } from "@/lib/constants";
 import type { ActionResult } from "@/app/(app)/challans/actions";
 
 const lineSchema = z.object({
   itemId: z.string().min(1, "Pick the billed item"),
-  hsnCode: z.string().trim().default(SERVICE_HSN),
+  hsnCode: z.string().trim().default(""),
   qty: z.number().positive(),
   rate: z.number().min(0),
   discountPct: z.number().min(0).max(100).default(0),
-  taxPct: z.number().min(0).max(28).default(SERVICE_GST_RATE),
+  taxPct: z.number().min(0).max(28).default(18),
 });
 
 const invoiceSchema = z.object({
   invoiceNo: z.string().trim().min(1, "Invoice number is required"),
   invoiceDate: z.string().min(1, "Invoice date is required"),
-  partyId: z.string().min(1, "Pick a job worker"),
+  partyId: z.string().min(1, "Pick a supplier"),
   ackNo: z.string().trim().optional(),
   ackDate: z.string().optional(),
   irn: z.string().trim().optional(),
@@ -32,8 +30,6 @@ const invoiceSchema = z.object({
   vehicleNo: z.string().trim().optional(),
   transport: z.string().trim().optional(),
   destination: z.string().trim().optional(),
-  periodFrom: z.string().min(1, "Pick the period this bill covers"),
-  periodTo: z.string().min(1, "Pick the period this bill covers"),
   notes: z.string().trim().optional(),
   lines: z.array(lineSchema).min(1, "Add at least one line"),
 });
@@ -47,16 +43,21 @@ function zodErrors(error: z.ZodError): Record<string, string> {
 }
 
 /**
- * Records a job worker's bill and checks it against reality: quantities we
- * actually received back as processed, and the rate agreed in the process route.
+ * Records a bill from one of our own suppliers — consumables, chemicals,
+ * transport and so on.
  *
- * Deliberately posts **no stock movements** — the goods already moved when the
- * return note was recorded. A bill is money, not stock.
+ * There is deliberately no quantity or rate verification here. That check only
+ * makes sense for a principal auditing a job worker's bill; we are the job
+ * worker, and we raise those invoices rather than receive them (see
+ * `/sales-invoices`).
+ *
+ * Posts **no stock movements**: a bill is money. If the purchase brought goods
+ * in, record those with a stock adjustment.
  */
 export async function savePurchaseInvoice(
   input: PurchaseInvoiceInput,
   invoiceId?: string,
-): Promise<ActionResult<{ _id: string; flags: string[] }>> {
+): Promise<ActionResult<{ _id: string }>> {
   const parsed = invoiceSchema.safeParse(input);
   if (!parsed.success) {
     return {
@@ -70,7 +71,7 @@ export async function savePurchaseInvoice(
   await connectDb();
 
   const party = await Party.findById(data.partyId).lean();
-  if (!party) return { ok: false, error: "That job worker no longer exists." };
+  if (!party) return { ok: false, error: "That supplier no longer exists." };
 
   const duplicate = await PurchaseInvoice.findOne({
     partyId: party._id,
@@ -90,18 +91,8 @@ export async function savePurchaseInvoice(
   }).lean();
   const itemById = new Map(items.map((item) => [item._id.toString(), item]));
 
-  const billable = await getBillableWork(
-    data.partyId,
-    new Date(data.periodFrom),
-    new Date(data.periodTo),
-    invoiceId,
-  );
-  const billableByItem = new Map(billable.map((row) => [row.itemId, row]));
-
   const company = await CompanyProfile.findOne().select("stateCode").lean();
   const interState = isInterState(company?.stateCode ?? "37", party.stateCode);
-
-  const flags: string[] = [];
 
   const lines = data.lines.map((line, index) => {
     const item = itemById.get(line.itemId);
@@ -109,11 +100,6 @@ export async function savePurchaseInvoice(
 
     const taxableAmount = lineTaxable(line.qty, line.rate, line.discountPct);
     const tax = splitTax(taxableAmount, line.taxPct, interState);
-    const variance = computeVariance(
-      { itemId: line.itemId, itemCode: item.itemCode, qty: line.qty, rate: line.rate },
-      billableByItem.get(line.itemId),
-    );
-    flags.push(...variance.flags);
 
     return {
       _id: new Types.ObjectId(),
@@ -121,7 +107,7 @@ export async function savePurchaseInvoice(
       itemId: item._id,
       itemCode: item.itemCode,
       description: item.description,
-      hsnCode: line.hsnCode || SERVICE_HSN,
+      hsnCode: line.hsnCode || item.hsnCode,
       qty: line.qty,
       uom: item.uom,
       rate: line.rate,
@@ -129,10 +115,9 @@ export async function savePurchaseInvoice(
       taxableAmount,
       taxPct: line.taxPct,
       amount: round2(taxableAmount + tax.totalTax),
-      matchedGrnQty: variance.matchedGrnQty,
-      routeRate: variance.routeRate ?? undefined,
-      qtyVariance: variance.qtyVariance,
-      rateVariance: variance.rateVariance,
+      matchedGrnQty: 0,
+      qtyVariance: 0,
+      rateVariance: 0,
     };
   });
 
@@ -166,8 +151,6 @@ export async function savePurchaseInvoice(
     vehicleNo: data.vehicleNo,
     transport: data.transport,
     destination: data.destination,
-    periodFrom: new Date(data.periodFrom),
-    periodTo: new Date(data.periodTo),
     lines,
     totalQty: round3(lines.reduce((total, line) => total + line.qty, 0)),
     subtotal,
@@ -177,8 +160,8 @@ export async function savePurchaseInvoice(
     totalTax,
     roundOff,
     grandTotal: rounded,
-    flags,
-    status: flags.length > 0 ? ("flagged" as const) : ("verified" as const),
+    flags: [] as string[],
+    status: "verified" as const,
     notes: data.notes,
   };
 
@@ -191,10 +174,10 @@ export async function savePurchaseInvoice(
   revalidatePath("/purchase-invoices");
   revalidatePath("/");
 
-  return { ok: true, data: { _id: saved._id.toString(), flags } };
+  return { ok: true, data: { _id: saved._id.toString() } };
 }
 
-/** Approves a bill for payment, flags and all — the office's explicit call. */
+/** Marks a supplier bill as approved for payment. */
 export async function approvePurchaseInvoice(invoiceId: string): Promise<ActionResult> {
   await connectDb();
 
@@ -228,9 +211,4 @@ export async function cancelPurchaseInvoice(
   revalidatePath(`/purchase-invoices/${invoiceId}`);
 
   return { ok: true, data: undefined };
-}
-
-/** Loads billable work for the period picker in the entry form. */
-export async function loadBillableWork(partyId: string, from: string, to: string) {
-  return getBillableWork(partyId, new Date(from), new Date(to));
 }

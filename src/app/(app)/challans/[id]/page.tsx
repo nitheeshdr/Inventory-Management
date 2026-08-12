@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Types } from "mongoose";
-import { ArrowLeft, Pencil, Printer } from "lucide-react";
+import { ArrowLeft, Pencil } from "lucide-react";
 import {
   Button,
   Card,
@@ -80,12 +80,6 @@ export default async function ChallanDetailPage({
         }
         action={
           <>
-            <Link href={`/challans/${id}/print`} target="_blank">
-              <Button variant="outline" size="sm">
-                <Printer className="h-3.5 w-3.5" strokeWidth={1.75} />
-                Print
-              </Button>
-            </Link>
             {challan.status !== "cancelled" && (
               <Link href={`/challans/${id}/edit`}>
                 <Button variant="outline" size="sm">
@@ -114,8 +108,8 @@ export default async function ChallanDetailPage({
 
       <Card className="mb-4 p-4">
         <DetailGrid>
-          <DetailField label="Job worker" value={party?.name} />
-          <DetailField label="Job worker GSTIN" value={party?.gstin} mono />
+          <DetailField label="Customer" value={party?.name} />
+          <DetailField label="Customer GSTIN" value={party?.gstin} mono />
           <DetailField label="Challan date" value={formatDate(challan.challanDate)} />
           <DetailField label="Return deadline" value={formatDate(challan.dueDate)} />
           <DetailField label="E-way bill" value={challan.ewayBillNo} mono />
@@ -133,7 +127,7 @@ export default async function ChallanDetailPage({
       <Card className="mb-4">
         <CardHeader
           title="Lines"
-          subtitle={`${challan.lines.length} lines · ${formatQty(totalPending)} pcs still to come back`}
+          subtitle={`${challan.lines.length} lines · ${formatQty(totalPending)} pcs still in our factory`}
         />
         <TableWrap className="rounded-none border-0">
           <Table>

@@ -8,14 +8,14 @@ import { round3 } from "@/lib/format";
 export interface DashboardData {
   plantQty: number;
   plantValue: number;
-  vendorQty: number;
-  vendorValue: number;
+  offSiteQty: number;
+  pendingValue: number;
   openChallans: number;
   overdueLines: number;
   nearDeadlineLines: number;
   unverifiedBills: number;
   aging: { key: string; label: string; qty: number; value: number; lines: number }[];
-  vendorPending: { partyId: string; partyName: string; qty: number; value: number; oldestDays: number }[];
+  heldPerCustomer: { partyId: string; partyName: string; qty: number; value: number; oldestDays: number }[];
   urgent: PendingChallanLine[];
   recentMovements: {
     _id: string;
@@ -38,7 +38,7 @@ export async function getDashboard(): Promise<DashboardData> {
   const [balances, pending, parties, unverifiedBills, movements] = await Promise.all([
     stockOnHand(),
     getPendingChallanLines(),
-    Party.find({ partyType: "job_worker" }).select("name").lean(),
+    Party.find({ partyType: "customer" }).select("name").lean(),
     PurchaseInvoice.countDocuments({ status: { $in: ["draft", "flagged"] } }),
     StockMovement.find()
       .sort({ createdAt: -1 })
@@ -54,7 +54,7 @@ export async function getDashboard(): Promise<DashboardData> {
   const partyName = new Map(parties.map((p) => [p._id.toString(), p.name]));
 
   const plant = balances.filter((row) => row.locationKind === "plant");
-  const vendor = balances.filter((row) => row.locationKind === "job_worker");
+  const offSite = balances.filter((row) => row.locationKind !== "plant");
 
   /* ------------------------------------------------------------ aging */
 
@@ -73,16 +73,16 @@ export async function getDashboard(): Promise<DashboardData> {
 
   /* ------------------------------------------------- vendor breakdown */
 
-  const vendorMap = new Map<string, { qty: number; value: number; oldestDays: number }>();
+  const customerMap = new Map<string, { qty: number; value: number; oldestDays: number }>();
   for (const line of pending) {
-    const entry = vendorMap.get(line.partyId) ?? { qty: 0, value: 0, oldestDays: 0 };
+    const entry = customerMap.get(line.partyId) ?? { qty: 0, value: 0, oldestDays: 0 };
     entry.qty += line.pendingQty;
     entry.value += line.pendingValue;
     entry.oldestDays = Math.max(entry.oldestDays, line.daysOpen);
-    vendorMap.set(line.partyId, entry);
+    customerMap.set(line.partyId, entry);
   }
 
-  const vendorPending = [...vendorMap.entries()]
+  const heldPerCustomer = [...customerMap.entries()]
     .map(([partyId, stats]) => ({
       partyId,
       partyName: partyName.get(partyId) ?? "—",
@@ -95,8 +95,8 @@ export async function getDashboard(): Promise<DashboardData> {
   return {
     plantQty: round3(plant.reduce((total, row) => total + row.qty, 0)),
     plantValue: round3(plant.reduce((total, row) => total + row.value, 0)),
-    vendorQty: round3(vendor.reduce((total, row) => total + row.qty, 0)),
-    vendorValue: round3(pending.reduce((total, line) => total + line.pendingValue, 0)),
+    offSiteQty: round3(offSite.reduce((total, row) => total + row.qty, 0)),
+    pendingValue: round3(pending.reduce((total, line) => total + line.pendingValue, 0)),
     openChallans: new Set(pending.map((line) => line.challanId)).size,
     overdueLines: pending.filter((line) => line.isOverdue).length,
     nearDeadlineLines: pending.filter(
@@ -104,7 +104,7 @@ export async function getDashboard(): Promise<DashboardData> {
     ).length,
     unverifiedBills,
     aging,
-    vendorPending,
+    heldPerCustomer,
     // What the office should chase first: closest to the one-year deadline.
     urgent: [...pending].sort((a, b) => b.daysOpen - a.daysOpen).slice(0, 8),
     recentMovements: movements.map((movement) => {

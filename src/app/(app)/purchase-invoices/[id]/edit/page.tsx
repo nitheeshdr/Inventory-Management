@@ -23,7 +23,7 @@ export default async function EditPurchaseInvoicePage({
   const invoice = await PurchaseInvoice.findById(id).lean();
   if (!invoice || invoice.status === "cancelled") notFound();
 
-  const [items, parties] = await Promise.all([getItemOptions(), getParties("job_worker")]);
+  const [items, parties] = await Promise.all([getItemOptions(), getParties("supplier")]);
 
   return (
     <>
@@ -36,7 +36,7 @@ export default async function EditPurchaseInvoicePage({
       </Link>
       <PageHeader
         title={`Edit bill ${invoice.invoiceNo}`}
-        subtitle="Saving re-runs the quantity and rate checks."
+        subtitle="Money only — editing a bill never touches stock."
       />
       <PurchaseInvoiceForm
         items={items}
@@ -54,8 +54,6 @@ export default async function EditPurchaseInvoicePage({
           vehicleNo: invoice.vehicleNo,
           transport: invoice.transport,
           destination: invoice.destination,
-          periodFrom: toDateInputValue(invoice.periodFrom),
-          periodTo: toDateInputValue(invoice.periodTo),
           notes: invoice.notes,
           lines: invoice.lines.map((line) => ({
             itemId: line.itemId.toString(),

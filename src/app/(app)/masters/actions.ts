@@ -148,10 +148,19 @@ export async function saveParty(
 
   if (!saved) return { ok: false, error: "Could not save the party." };
 
-  if (saved.partyType === "job_worker") {
+  // Customers get a stock location: it holds their goods before they reach us
+  // and after we send them back, which is what makes "still in our factory" a
+  // real balance rather than a report calculation.
+  if (saved.partyType === "customer" || saved.partyType === "job_worker") {
     await Location.findOneAndUpdate(
       { partyId: saved._id },
-      { $set: { name: `At ${saved.name}`, kind: "job_worker", partyId: saved._id } },
+      {
+        $set: {
+          name: `At ${saved.name}`,
+          kind: saved.partyType === "customer" ? "customer" : "job_worker",
+          partyId: saved._id,
+        },
+      },
       { upsert: true },
     );
   }
@@ -192,12 +201,9 @@ export async function saveRoute(
   }
   const data = parsed.data;
 
-  if (data.inputItemId === data.outputItemId) {
-    return {
-      ok: false,
-      error: "A process must change the item code — input and output cannot be the same.",
-    };
-  }
+  // Input and output may be the same code: buffing and similar operations add
+  // value without changing the part number, and the rate sheet prices them that
+  // way. The route still records the charge and which vendor does the work.
 
   await connectDb();
 

@@ -83,14 +83,14 @@ export async function getSetupState(): Promise<SetupState> {
 
   const hasCompany = Boolean(company?.gstin);
   const hasItems = items > 0;
-  const hasJobWorkers = jobWorkers > 0;
+  const hasCustomers = customers > 0;
 
   return {
     hasCompany,
     hasItems,
-    hasJobWorkers,
-    hasCustomers: customers > 0,
-    // Enough to raise a job-work challan, which is the first real document.
-    isReady: hasCompany && hasItems && hasJobWorkers,
+    hasJobWorkers: jobWorkers > 0,
+    hasCustomers,
+    // Enough to record an inward challan, which is the first real document.
+    isReady: hasCompany && hasItems && hasCustomers,
   };
 }

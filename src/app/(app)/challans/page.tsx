@@ -32,10 +32,10 @@ export default async function ChallansPage() {
   return (
     <>
       <PageHeader
-        title="Outward job-work challans"
+        title="Inward job-work challans"
         subtitle={
           rows.length
-            ? `${formatQty(totals.pending)} pcs still with job workers, worth about ${formatAmount(totals.value)}.`
+            ? `${formatQty(totals.pending)} pcs still in our factory, worth about ${formatAmount(totals.value)}.`
             : "Goods sent out for processing under Section 143."
         }
         action={
@@ -52,7 +52,7 @@ export default async function ChallansPage() {
         <TableWrap>
           <EmptyState
             title="No challans yet"
-            description="Create one when goods leave the plant for a job worker."
+            description="Record one when a principal delivers goods for processing."
             action={
               <Link href="/challans/new">
                 <Button variant="primary" size="sm">
@@ -69,7 +69,7 @@ export default async function ChallansPage() {
               <tr>
                 <Th>Challan no</Th>
                 <Th>Date</Th>
-                <Th>Job worker</Th>
+                <Th>Customer</Th>
                 <ThNum>Lines</ThNum>
                 <ThNum>Sent</ThNum>
                 <ThNum>Returned</ThNum>

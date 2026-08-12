@@ -26,7 +26,7 @@ export default async function RoutesMasterPage() {
       .select("name")
       .lean(),
     getItemOptions(),
-    getParties("job_worker"),
+    getParties("customer"),
   ]);
 
   const itemById = new Map(routeItems.map((item) => [item._id.toString(), item]));

@@ -38,7 +38,7 @@ const grnSchema = z.object({
   grnNo: z.string().trim().min(1, "Return note number is required"),
   vendorDocNo: z.string().trim().optional(),
   grnDate: z.string().min(1, "Date is required"),
-  partyId: z.string().min(1, "Pick a job worker"),
+  partyId: z.string().min(1, "Pick a customer"),
   vehicleNo: z.string().trim().optional(),
   grNo: z.string().trim().optional(),
   transportRemark: z.string().trim().optional(),
@@ -55,12 +55,12 @@ function zodErrors(error: z.ZodError): Record<string, string> {
 }
 
 /**
- * Records goods coming back from a job worker.
+ * Records goods going back to the customer once we have processed them.
  *
- * Each line is allocated against the challan line(s) it went out on, which is
- * what closes the 1-year GST clock. Processed lines consume the *input* code at
- * the vendor and bring the *output* code into the plant; rejections come back
- * unchanged.
+ * Each line is allocated against the inward challan line(s) it arrived on, which
+ * is what closes the principal's 1-year GST clock. Processed lines consume the
+ * *input* code in our factory and send the *output* code back; rejections go
+ * back under the code they arrived as.
  */
 export async function saveGrn(
   input: GrnInput,
@@ -79,13 +79,13 @@ export async function saveGrn(
   await connectDb();
 
   const party = await Party.findById(data.partyId).lean();
-  if (!party) return { ok: false, error: "That job worker no longer exists." };
+  if (!party) return { ok: false, error: "That customer no longer exists." };
 
-  const [plant, vendorLocation] = await Promise.all([
+  const [plant, customerLocation] = await Promise.all([
     ensurePlantLocation(),
     Location.findOne({ partyId: party._id }).lean(),
   ]);
-  if (!vendorLocation) {
+  if (!customerLocation) {
     return {
       ok: false,
       error: `${party.name} has no stock location. Re-save the party in Masters to create one.`,
@@ -127,7 +127,7 @@ export async function saveGrn(
           `${problem.itemCode} on challan ${problem.challanNo}: allocating ${problem.allocated} but only ${problem.pending} pending`,
       )
       .join("; ");
-    return { ok: false, error: `A return cannot exceed what is still with the vendor — ${detail}.` };
+    return { ok: false, error: `A return cannot exceed what is still in our factory — ${detail}.` };
   }
 
   for (const [index, line] of data.lines.entries()) {
@@ -186,8 +186,8 @@ export async function saveGrn(
     vendorDocNo: data.vendorDocNo,
     grnDate,
     partyId: party._id,
-    fromLocationId: vendorLocation._id,
-    toLocationId: plant._id,
+    fromLocationId: plant._id,
+    toLocationId: customerLocation._id,
     vehicleNo: data.vehicleNo,
     grNo: data.grNo,
     transportRemark: data.transportRemark,
@@ -229,19 +229,19 @@ export async function saveGrn(
         return [
           {
             itemId: line.inputItemId!,
-            locationId: vendorLocation._id,
+            locationId: plant._id,
             qty: -consumedQty,
             docLineId: line._id,
-            remark: `Returned by ${party.name}`,
+            remark: `Consumed for ${party.name}`,
           },
           {
             itemId: line.itemId,
-            locationId: plant._id,
+            locationId: customerLocation._id,
             qty: line.qty,
             docLineId: line._id,
             remark:
               line.lineKind === "processed"
-                ? "Processed goods received"
+                ? `Processed goods despatched to ${party.name}`
                 : `${line.lineKind} — ${line.rejectionReason ?? "no reason given"}`,
           },
         ];

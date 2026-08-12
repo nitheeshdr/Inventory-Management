@@ -33,13 +33,13 @@ import {
   Location,
   Party,
   ProcessRoute,
-  PurchaseInvoice,
+  SalesInvoice,
   StockAdjustment,
   StockMovement,
 } from "./models";
 import { postMovements } from "@/lib/ledger";
 import { ensureCompanyProfile, ensurePlantLocation } from "@/lib/setup";
-import { addYears, round2, round3 } from "@/lib/format";
+import { addYears, amountInWords, round2, round3 } from "@/lib/format";
 import { lineTaxable, roundOffDelta, splitTax } from "@/lib/gst";
 import { SERVICE_GST_RATE, SERVICE_HSN } from "@/lib/constants";
 import type { ItemType } from "@/lib/constants";
@@ -166,7 +166,7 @@ async function undo() {
 
   await JobWorkChallan.deleteMany({ challanNo: { $in: [CHALLAN_NO, LEGACY_CHALLAN_NO] } });
   await Grn.deleteMany({ grnNo: GRN_NO });
-  await PurchaseInvoice.deleteMany({ invoiceNo: BILL_NO });
+  await SalesInvoice.deleteMany({ invoiceNo: BILL_NO });
   await StockAdjustment.deleteMany({ adjustmentNo: OPENING_ADJ_NO });
 
   console.log(`• Removed 3 documents, the opening adjustment and ${deletedCount} ledger rows`);
@@ -214,28 +214,35 @@ async function main() {
 
   /* -------------------------------------------------- Best Enterprises */
 
-  const best = await Party.findOneAndUpdate(
-    { code: "BE" },
-    {
-      $setOnInsert: {
-        code: "BE",
-        name: "BEST ENTERPRISES",
-        partyType: "job_worker",
-        gstin: "37ALAPP4700H1ZB",
-        addressLines: [
-          "PLOT NO. UDL-2A/2, S.NO. 112-1",
-          "APIIC CHINNAPANDURU, VARADAIAHPALEM",
-          "TIRUPATI 517541",
-        ],
-        state: "Andhra Pradesh",
-        stateCode: "37",
-        phone: "9913775149",
+  // Reuse the vendor account the rate workbook created rather than adding a
+  // second Best Enterprises. These documents are coating work, which is vendor
+  // 1105306 (painting & powder). Falls back to creating "BE" on a database that
+  // has not had the rate workbook imported.
+  const best =
+    (await Party.findOne({ code: "1105306", partyType: "customer" })) ??
+    (await Party.findOne({ gstin: "37AABCD1683Q3Z3", partyType: "customer" })) ??
+    (await Party.findOneAndUpdate(
+      { code: "BE" },
+      {
+        $setOnInsert: {
+          code: "BE",
+          name: "BEST ENTERPRISES",
+          partyType: "job_worker",
+          gstin: "37ALAPP4700H1ZB",
+          addressLines: [
+            "PLOT NO. UDL-2A/2, S.NO. 112-1",
+            "APIIC CHINNAPANDURU, VARADAIAHPALEM",
+            "TIRUPATI 517541",
+          ],
+          state: "Andhra Pradesh",
+          stateCode: "37",
+          phone: "9913775149",
+        },
       },
-    },
-    { upsert: true, returnDocument: "after" },
-  );
+      { upsert: true, returnDocument: "after" },
+    ));
 
-  const bestLocation = await Location.findOneAndUpdate(
+  const customerLocation = await Location.findOneAndUpdate(
     { partyId: best!._id },
     { $setOnInsert: { name: `At ${best!.name}`, kind: "job_worker", partyId: best!._id } },
     { upsert: true, returnDocument: "after" },
@@ -297,10 +304,10 @@ async function main() {
     const adjustment = await StockAdjustment.create({
       adjustmentNo: OPENING_ADJ_NO,
       adjustmentDate: new Date("2026-06-30"),
-      locationId: plant._id,
+      locationId: customerLocation!._id,
       reason: "Opening balance",
       notes:
-        "Set to exactly what challan 2621500964 and return note 125 consume. Not a physical count.",
+        "Customer-side opening balance, set to exactly what the two inward challans bring in. Not a physical count.",
       lines,
       status: "open",
     });
@@ -314,10 +321,10 @@ async function main() {
       },
       lines.map((line) => ({
         itemId: line.itemId,
-        locationId: plant._id,
+        locationId: customerLocation!._id,
         qty: line.qty,
         docLineId: line._id,
-        remark: "Opening balance",
+        remark: "Held by the customer before despatch to us",
       })),
     );
 
@@ -362,8 +369,8 @@ async function main() {
       challanNo: opts.challanNo,
       challanDate: opts.date,
       partyId: best!._id,
-      fromLocationId: plant._id,
-      toLocationId: bestLocation!._id,
+      fromLocationId: customerLocation!._id,
+      toLocationId: plant._id,
       vehicleNo: opts.vehicleNo,
       transportPo: opts.transportPo,
       natureOfProcess: opts.natureOfProcess,
@@ -390,13 +397,13 @@ async function main() {
         partyId: best!._id,
       },
       lines.flatMap((line) => [
-        { itemId: line.itemId, locationId: plant._id, qty: -line.qty, docLineId: line._id },
         {
           itemId: line.itemId,
-          locationId: bestLocation!._id,
-          qty: line.qty,
+          locationId: customerLocation!._id,
+          qty: -line.qty,
           docLineId: line._id,
         },
+        { itemId: line.itemId, locationId: plant._id, qty: line.qty, docLineId: line._id },
       ]),
     );
 
@@ -469,7 +476,7 @@ async function main() {
       vendorDocNo: "125",
       grnDate,
       partyId: best!._id,
-      fromLocationId: bestLocation!._id,
+      fromLocationId: customerLocation!._id,
       toLocationId: plant._id,
       vehicleNo: "TN 18 AA 7654",
       grNo: "REFER OUR ATTACHMENT",
@@ -490,14 +497,14 @@ async function main() {
       lines.flatMap((line) => [
         {
           itemId: line.itemId,
-          locationId: bestLocation!._id,
+          locationId: plant._id,
           qty: -line.qty,
           docLineId: line._id,
-          remark: "Returned by BEST ENTERPRISES",
+          remark: "Returned to the customer",
         },
         {
           itemId: line.itemId,
-          locationId: plant._id,
+          locationId: customerLocation!._id,
           qty: line.qty,
           docLineId: line._id,
           remark: "rejected — BODY DENT (SCRUB)",
@@ -513,9 +520,9 @@ async function main() {
     console.log(`• Return note 125 — ${lines.length} lines, ${total} pcs rejected`);
   }
 
-  /* -------------------------------------- 4. bill BE/26-27/0344 (real) */
+  /* ------------------ 4. our job-work invoice BE/26-27/0344 (real) */
 
-  if (!(await PurchaseInvoice.findOne({ invoiceNo: BILL_NO }))) {
+  if (!(await SalesInvoice.findOne({ invoiceNo: BILL_NO }))) {
     const lines = BILL_LINES.map((line, index) => {
       const item = byCode.get(line.code)!;
       const taxableAmount = lineTaxable(line.qty, line.rate);
@@ -534,12 +541,10 @@ async function main() {
         discountPct: 0,
         taxableAmount,
         taxPct: SERVICE_GST_RATE,
+        cgstAmount: tax.cgstAmount,
+        sgstAmount: tax.sgstAmount,
+        igstAmount: tax.igstAmount,
         amount: round2(taxableAmount + tax.totalTax),
-        // No processed goods have been received for these codes, because the
-        // challans they came from predate the system.
-        matchedGrnQty: 0,
-        qtyVariance: line.qty,
-        rateVariance: 0,
       };
     });
 
@@ -553,18 +558,16 @@ async function main() {
     const totalTax = round2(half * 2);
     const { roundOff, rounded } = roundOffDelta(round2(subtotal + totalTax));
 
-    const invoice = await PurchaseInvoice.create({
+    const invoice = await SalesInvoice.create({
       invoiceNo: BILL_NO,
       invoiceDate: new Date("2026-08-05"),
       partyId: best!._id,
-      ackNo: "112631802757500",
-      ackDate: new Date("2026-08-05T11:38:00"),
-      irn: "c574c23841a30525d44c061f82aaceeb1c481f86da881ed5e76d86b2ea60a9f7",
-      poRefs: ["4500738933"],
+      locationId: plant._id,
+      shipToLines: best!.addressLines,
+      poNo: "4500738933",
       vehicleNo: "TN85M5349",
       transport: "REFER OUR ATTACHMENT",
-      periodFrom: new Date("2026-08-01"),
-      periodTo: new Date("2026-08-31"),
+      isInterState: false,
       lines,
       totalQty: round3(lines.reduce((total, line) => total + line.qty, 0)),
       subtotal,
@@ -574,19 +577,20 @@ async function main() {
       totalTax,
       roundOff,
       grandTotal: rounded,
-      status: "flagged",
-      flags: lines.map(
-        (line) =>
-          `${line.itemCode}: billed ${line.qty} but no processed goods have been received for this code — the work predates this system.`,
-      ),
-      notes:
-        "Second PO reference is cut off in the photograph. No return notes exist for the billed codes, so every line is flagged.",
+      amountInWords: amountInWords(rounded),
+      // A job-work invoice bills a service; the goods moved on the return note,
+      // so this document deliberately posts nothing to the stock ledger.
+      status: "open",
+      notes: [
+        "ACK 112631802757500 · ACK date 2026-08-05 11:38",
+        "IRN c574c23841a30525d44c061f82aaceeb1c481f86da881ed5e76d86b2ea60a9f7",
+        "Second PO reference is cut off in the photograph.",
+      ].join("\n"),
     });
 
     console.log(
-      `• Bill ${invoice.invoiceNo} — ${invoice.lines.length} lines, ${invoice.totalQty} pcs, before tax ₹${invoice.subtotal.toLocaleString("en-IN")}, grand total ₹${invoice.grandTotal.toLocaleString("en-IN")}`,
+      `• Job-work invoice ${invoice.invoiceNo} — ${invoice.lines.length} lines, ${invoice.totalQty} pcs, before tax ₹${invoice.subtotal.toLocaleString("en-IN")}, grand total ₹${invoice.grandTotal.toLocaleString("en-IN")}`,
     );
-    console.log(`  ${invoice.flags.length} lines flagged (no matching return notes)`);
   }
 
   console.log("\nDone. Two things to fix in the app:");

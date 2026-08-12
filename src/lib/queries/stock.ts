@@ -19,7 +19,7 @@ export interface ItemStockRow {
   standardValue: number;
   reorderLevel: number;
   plantQty: number;
-  vendorQty: number;
+  offSiteQty: number;
   totalQty: number;
   totalValue: number;
   byLocation: { locationId: string; locationName: string; kind: string; qty: number }[];
@@ -57,8 +57,8 @@ export async function getItemStock(asOn?: Date): Promise<ItemStockRow[]> {
     const plantQty = round3(
       rows.filter((r) => r.locationKind === "plant").reduce((total, r) => total + r.qty, 0),
     );
-    const vendorQty = round3(
-      rows.filter((r) => r.locationKind === "job_worker").reduce((total, r) => total + r.qty, 0),
+    const offSiteQty = round3(
+      rows.filter((r) => r.locationKind !== "plant").reduce((total, r) => total + r.qty, 0),
     );
     const totalQty = round3(rows.reduce((total, r) => total + r.qty, 0));
 
@@ -71,7 +71,7 @@ export async function getItemStock(asOn?: Date): Promise<ItemStockRow[]> {
       standardValue: item.standardValue,
       reorderLevel: item.reorderLevel,
       plantQty,
-      vendorQty,
+      offSiteQty,
       totalQty,
       totalValue: round3(totalQty * item.standardValue),
       byLocation: rows.map((r) => ({

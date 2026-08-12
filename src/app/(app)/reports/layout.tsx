@@ -5,7 +5,7 @@ const TABS = [
   { href: "/reports/aging", label: "Aging & deadlines" },
   { href: "/reports/job-work-register", label: "Job-work register" },
   { href: "/reports/stock-as-on", label: "Stock as on date" },
-  { href: "/reports/itc-04", label: "ITC-04 extract" },
+  { href: "/reports/itc-04", label: "ITC-04 for customer" },
 ];
 
 export default function ReportsLayout({ children }: { children: React.ReactNode }) {

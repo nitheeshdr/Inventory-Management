@@ -8,12 +8,12 @@ import { PurchaseInvoiceForm } from "../invoice-form";
 export const dynamic = "force-dynamic";
 
 export default async function NewPurchaseInvoicePage() {
-  const [items, parties] = await Promise.all([getItemOptions(), getParties("job_worker")]);
+  const [items, parties] = await Promise.all([getItemOptions(), getParties("supplier")]);
 
   const missing = [
     ...(items.length === 0 ? [{ label: "No item codes yet", href: "/masters/items" }] : []),
     ...(parties.length === 0
-      ? [{ label: "No job workers yet", href: "/masters/parties" }]
+      ? [{ label: "No suppliers yet", href: "/masters/parties" }]
       : []),
   ];
 
@@ -27,8 +27,8 @@ export default async function NewPurchaseInvoicePage() {
           <ArrowLeft className="h-3.5 w-3.5" strokeWidth={1.75} />
           Back to bills
         </Link>
-        <PageHeader title="New job-work bill" />
-        <SetupRequired title="A bill needs items and a job worker" missing={missing} />
+        <PageHeader title="New supplier bill" />
+        <SetupRequired title="A bill needs items and a supplier" missing={missing} />
       </>
     );
   }
@@ -43,8 +43,8 @@ export default async function NewPurchaseInvoicePage() {
         Back to bills
       </Link>
       <PageHeader
-        title="New job-work bill"
-        subtitle="Checked line by line against the processed goods actually received and the agreed rate."
+        title="New supplier bill"
+        subtitle="A bill from one of your own suppliers. It records money only — no stock moves."
       />
       <PurchaseInvoiceForm items={items} parties={parties} />
     </>

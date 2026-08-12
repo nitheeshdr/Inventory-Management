@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Plus } from "lucide-react";
+import { ArrowRight, Plus, Search } from "lucide-react";
 import type { ItemOption } from "@/app/api/items/route";
 import type { PartyOption } from "@/lib/queries/masters";
 import {
@@ -88,9 +88,25 @@ export function RoutesClient({
   const router = useRouter();
   const [editing, setEditing] = useState<Draft | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [partyFilter, setPartyFilter] = useState("all");
+  const [onlyUnconfirmed, setOnlyUnconfirmed] = useState(false);
   const [pending, startTransition] = useTransition();
 
   const unconfirmed = rows.filter((row) => !row.isConfirmed).length;
+
+  // With a few hundred imported rates, the register is only usable filtered.
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return rows.filter((row) => {
+      if (partyFilter !== "all" && (row.partyId ?? "any") !== partyFilter) return false;
+      if (onlyUnconfirmed && row.isConfirmed) return false;
+      if (!q) return true;
+      return `${row.inputItemCode} ${row.inputDescription} ${row.outputItemCode} ${row.outputDescription} ${row.processName}`
+        .toLowerCase()
+        .includes(q);
+    });
+  }, [rows, query, partyFilter, onlyUnconfirmed]);
 
   function openFor(row: RouteRow) {
     setError(null);
@@ -165,6 +181,48 @@ export function RoutesClient({
         </Button>
       </div>
 
+      {rows.length > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <div className="relative min-w-[16rem] flex-1">
+            <Search
+              className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-fg-subtle"
+              strokeWidth={1.75}
+            />
+            <Input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search item code, description or process…"
+              className="pl-8"
+            />
+          </div>
+          <Select
+            value={partyFilter}
+            onChange={(event) => setPartyFilter(event.target.value)}
+            className="w-auto min-w-[14rem]"
+          >
+            <option value="all">All job workers</option>
+            <option value="any">Any job worker (unscoped)</option>
+            {parties.map((party) => (
+              <option key={party._id} value={party._id}>
+                {party.name}
+              </option>
+            ))}
+          </Select>
+          <label className="flex items-center gap-1.5 whitespace-nowrap text-xs text-fg-muted">
+            <input
+              type="checkbox"
+              checked={onlyUnconfirmed}
+              onChange={(event) => setOnlyUnconfirmed(event.target.checked)}
+              className="h-3.5 w-3.5 accent-[var(--accent)]"
+            />
+            Unconfirmed only
+          </label>
+          <span className="text-xs text-fg-muted">
+            {visible.length} of {rows.length}
+          </span>
+        </div>
+      )}
+
       {rows.length === 0 ? (
         <Card>
           <EmptyState
@@ -178,7 +236,7 @@ export function RoutesClient({
           />
         </Card>
       ) : (
-        <TableWrap>
+        <TableWrap className="max-h-[68vh] overflow-y-auto">
           <Table>
             <thead>
               <tr>
@@ -194,7 +252,7 @@ export function RoutesClient({
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
+              {visible.map((row) => (
                 <tr key={row._id} className="transition-colors hover:bg-surface-2">
                   <Td>
                     <span className="font-mono text-[13px]">{row.inputItemCode}</span>

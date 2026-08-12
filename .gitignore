@@ -40,3 +40,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .gstack/
+
+# Business data — rate cards, item masters and customer pricing.
+# This repository is public; these belong in the database, not in git.
+datas/

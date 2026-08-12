@@ -74,7 +74,7 @@ export default async function GrnDetailPage({
             {grn.status === "cancelled" ? (
               <DocStatusChip status="cancelled" />
             ) : (
-              <Chip tone="success">Received</Chip>
+              <Chip tone="success">Despatched</Chip>
             )}
             <span className="text-fg-muted">
               {party?.name} · {formatDate(grn.grnDate)}
@@ -110,8 +110,8 @@ export default async function GrnDetailPage({
 
       <Card className="mb-4 p-4">
         <DetailGrid>
-          <DetailField label="Job worker" value={party?.name} />
-          <DetailField label="Their note no" value={grn.vendorDocNo} mono />
+          <DetailField label="Customer" value={party?.name} />
+          <DetailField label="Return note no" value={grn.vendorDocNo} mono />
           <DetailField label="Date" value={formatDate(grn.grnDate)} />
           <DetailField label="Vehicle" value={grn.vehicleNo} mono />
           <DetailField label="GR no" value={grn.grNo} />
@@ -125,7 +125,7 @@ export default async function GrnDetailPage({
       <Card className="mb-4">
         <CardHeader
           title="Lines"
-          subtitle={`${grn.lines.length} lines · ${formatQty(totalQty)} pcs received`}
+          subtitle={`${grn.lines.length} lines · ${formatQty(totalQty)} pcs returned`}
         />
         <TableWrap className="rounded-none border-0">
           <Table>

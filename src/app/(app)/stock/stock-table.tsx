@@ -22,8 +22,8 @@ type Filter = "all" | "plant" | "vendor" | "low" | "zero";
 
 const FILTERS: { value: Filter; label: string }[] = [
   { value: "all", label: "All items" },
-  { value: "plant", label: "In plant" },
-  { value: "vendor", label: "With job workers" },
+  { value: "plant", label: "In our factory" },
+  { value: "vendor", label: "With the customer" },
   { value: "low", label: "Below reorder level" },
   { value: "zero", label: "Nil stock" },
 ];
@@ -42,7 +42,7 @@ export function StockTable({ rows }: { rows: ItemStockRow[] }) {
         case "plant":
           return row.plantQty > 0;
         case "vendor":
-          return row.vendorQty > 0;
+          return row.offSiteQty > 0;
         case "low":
           return row.isBelowReorder;
         case "zero":
@@ -58,7 +58,7 @@ export function StockTable({ rows }: { rows: ItemStockRow[] }) {
       visible.reduce(
         (acc, row) => ({
           plant: acc.plant + row.plantQty,
-          vendor: acc.vendor + row.vendorQty,
+          vendor: acc.vendor + row.offSiteQty,
           total: acc.total + row.totalQty,
           value: acc.value + row.totalValue,
         }),
@@ -113,8 +113,8 @@ export function StockTable({ rows }: { rows: ItemStockRow[] }) {
                 <Th>Item code</Th>
                 <Th>Description</Th>
                 <Th>Type</Th>
-                <ThNum>In plant</ThNum>
-                <ThNum>With job workers</ThNum>
+                <ThNum>In our factory</ThNum>
+                <ThNum>With customer</ThNum>
                 <ThNum>Total</ThNum>
                 <ThNum>Value</ThNum>
               </tr>
@@ -153,8 +153,8 @@ export function StockTable({ rows }: { rows: ItemStockRow[] }) {
                   <TdNum className={row.plantQty < 0 ? "text-danger" : undefined}>
                     {formatQty(row.plantQty)}
                   </TdNum>
-                  <TdNum className={row.vendorQty > 0 ? "text-warning" : "text-fg-subtle"}>
-                    {formatQty(row.vendorQty)}
+                  <TdNum className={row.offSiteQty > 0 ? "text-warning" : "text-fg-subtle"}>
+                    {formatQty(row.offSiteQty)}
                   </TdNum>
                   <TdNum className="font-medium">{formatQty(row.totalQty)}</TdNum>
                   <TdNum className="text-fg-muted">{formatAmount(row.totalValue)}</TdNum>

@@ -68,19 +68,24 @@ export default async function GrnPrintPage({
 
       <div className="border border-black">
         <div className="border-b border-black px-2 py-1 text-center">
-          <div className="text-[13px] font-bold uppercase">{party?.name}</div>
-          <div className="text-[10px]">{party?.addressLines.join(", ")}</div>
-          <div className="text-[10px]">GSTIN: {party?.gstin}</div>
+          <div className="text-[13px] font-bold uppercase">{company?.name}</div>
+          <div className="text-[10px]">{company?.addressLines.join(", ")}</div>
+          <div className="text-[10px]">
+            GSTIN: {company?.gstin}
+            {company?.bankName
+              ? ` · ${company.bankName} A/C ${company.bankAccount} · IFSC ${company.bankIfsc}`
+              : ""}
+          </div>
         </div>
 
         <div className="grid grid-cols-2">
           <div className="border-r border-black p-2">
             <div className="font-semibold">Party Details:</div>
-            <div className="font-semibold uppercase">{company?.name}</div>
-            {company?.addressLines.map((line) => (
+            <div className="font-semibold uppercase">{party?.name}</div>
+            {party?.addressLines.map((line) => (
               <div key={line}>{line}</div>
             ))}
-            <PrintRow label="Party GSTIN :" value={company?.gstin} />
+            <PrintRow label="Party GSTIN :" value={party?.gstin} />
           </div>
           <div className="p-2">
             <PrintRow label="NO." value={grn.vendorDocNo || grn.grnNo} />
@@ -88,7 +93,7 @@ export default async function GrnPrintPage({
             <PrintRow label="GR No." value={grn.grNo} />
             <PrintRow label="Vehicle No." value={grn.vehicleNo} />
             <PrintRow label="TRANSPORT" value={grn.transportRemark} />
-            <PrintRow label="Our GRN" value={grn.grnNo} />
+            <PrintRow label="Our ref" value={grn.grnNo} />
           </div>
         </div>
       </div>
@@ -155,7 +160,7 @@ export default async function GrnPrintPage({
       {grn.notes && <div className="mt-2 text-[10px]">Note: {grn.notes}</div>}
 
       <div className="mt-2 text-[10px]">
-        Goods received back against job-work challans:{" "}
+        Goods returned against inward challans:{" "}
         {[...new Set(grn.lines.flatMap((l) => l.allocations.map((a) => a.challanNo)))]
           .filter(Boolean)
           .join(", ") || "—"}

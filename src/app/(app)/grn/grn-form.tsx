@@ -231,7 +231,7 @@ export function GrnForm({
     const overRow = rows.find((row) => Number(row.qty) > row.pendingQty);
     if (overRow) {
       setError(
-        `${overRow.inputItem.itemCode} on challan ${overRow.challanNo}: only ${overRow.pendingQty} pcs are still with the vendor.`,
+        `${overRow.inputItem.itemCode} on challan ${overRow.challanNo}: only ${overRow.pendingQty} pcs are still in our factory.`,
       );
       return;
     }
@@ -278,7 +278,7 @@ export function GrnForm({
       )}
 
       <Card>
-        <CardHeader title="Return note details" />
+        <CardHeader title="Outward return details" />
         <div className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-4">
           <Field label="Our GRN no" required error={fieldErrors.grnNo}>
             <Input
@@ -287,7 +287,7 @@ export function GrnForm({
               className="font-mono"
             />
           </Field>
-          <Field label="Vendor's note no" hint="As printed on their return note">
+          <Field label="Our return note no" hint="The number on the printed return note">
             <Input
               value={header.vendorDocNo}
               onChange={(e) => setHeader({ ...header, vendorDocNo: e.target.value })}
@@ -302,7 +302,7 @@ export function GrnForm({
               onChange={(e) => setHeader({ ...header, grnDate: e.target.value })}
             />
           </Field>
-          <Field label="Job worker" required>
+          <Field label="Customer" required>
             <Select value={header.partyId} onChange={(e) => changeParty(e.target.value)}>
               {parties.map((party) => (
                 <option key={party._id} value={party._id}>
@@ -339,7 +339,7 @@ export function GrnForm({
           title="Returned lines"
           subtitle={
             rows.length
-              ? `${rows.length} lines · ${formatQty(totalQty)} pcs coming back`
+              ? `${rows.length} lines · ${formatQty(totalQty)} pcs going back`
               : "Pick from the pending list below to start."
           }
         />
@@ -441,13 +441,13 @@ export function GrnForm({
 
       <Card>
         <CardHeader
-          title="Pending with this job worker"
-          subtitle="Oldest challans first — clear these before they cross one year."
+          title="Lying in our factory"
+          subtitle="Oldest inward challans first — return these before they cross one year."
         />
         {availableLines.length === 0 ? (
           <EmptyState
             title="Nothing pending"
-            description="This job worker has returned everything sent to them."
+            description="Everything this customer sent has been returned."
           />
         ) : (
           <TableWrap className="max-h-[40vh] overflow-y-auto rounded-none border-0">

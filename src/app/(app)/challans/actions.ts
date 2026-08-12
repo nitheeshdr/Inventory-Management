@@ -5,7 +5,7 @@ import { Types } from "mongoose";
 import { z } from "zod";
 import { connectDb, withTransaction } from "@/db/connect";
 import { CompanyProfile, Item, JobWorkChallan, Location, Party } from "@/db/models";
-import { postMovements, reverseMovements, checkAvailability } from "@/lib/ledger";
+import { postMovements, reverseMovements } from "@/lib/ledger";
 import { getPendingChallanLines } from "@/lib/allocation";
 import { ensurePlantLocation } from "@/lib/setup";
 import { addYears, round2 } from "@/lib/format";
@@ -20,7 +20,7 @@ const lineSchema = z.object({
 const challanSchema = z.object({
   challanNo: z.string().trim().min(1, "Challan number is required"),
   challanDate: z.string().min(1, "Challan date is required"),
-  partyId: z.string().min(1, "Pick a job worker"),
+  partyId: z.string().min(1, "Pick a customer"),
   ewayBillNo: z.string().trim().optional(),
   vehicleNo: z.string().trim().optional(),
   transportPo: z.string().trim().optional(),
@@ -46,8 +46,12 @@ function zodErrors(error: z.ZodError): Record<string, string> {
 }
 
 /**
- * Creates or updates an outward job-work challan and posts the matching ledger
- * movements: out of the plant, into the job worker's location.
+ * Creates or updates an **inward** job-work challan — the principal's delivery
+ * challan arriving with their goods for processing.
+ *
+ * We are the job worker, so the goods land in our factory and stay the
+ * customer's property. Movements run the other way from a principal's system:
+ * out of the customer's location, into our plant.
  */
 export async function saveChallan(
   input: ChallanInput,
@@ -62,13 +66,13 @@ export async function saveChallan(
   await connectDb();
 
   const party = await Party.findById(data.partyId).lean();
-  if (!party) return { ok: false, error: "That job worker no longer exists." };
+  if (!party) return { ok: false, error: "That customer no longer exists." };
 
-  const [plant, vendorLocation] = await Promise.all([
+  const [plant, customerLocation] = await Promise.all([
     ensurePlantLocation(),
     Location.findOne({ partyId: party._id }).lean(),
   ]);
-  if (!vendorLocation) {
+  if (!customerLocation) {
     return {
       ok: false,
       error: `${party.name} has no stock location. Re-save the party in Masters to create one.`,
@@ -153,24 +157,16 @@ export async function saveChallan(
   const tax = splitTax(totalTaxable, data.taxRate, interState);
   const challanDate = new Date(data.challanDate);
 
+  // No availability check on an inward challan — the customer is sending these
+  // goods to us, so our own balance is irrelevant.
   const warnings: string[] = [];
-  const shortfalls = await checkAvailability(
-    plant._id,
-    lines.map((line) => ({ itemId: line.itemId, qty: line.qty })),
-    existing ? { docType: "job_work_challan", docId: existing._id } : undefined,
-  );
-  for (const shortfall of shortfalls) {
-    warnings.push(
-      `${shortfall.itemCode} — sending ${shortfall.requested} but only ${shortfall.available} in the plant (short by ${shortfall.shortfall}).`,
-    );
-  }
 
   const payload = {
     challanNo: data.challanNo,
     challanDate,
     partyId: party._id,
-    fromLocationId: plant._id,
-    toLocationId: vendorLocation._id,
+    fromLocationId: customerLocation._id,
+    toLocationId: plant._id,
     ewayBillNo: data.ewayBillNo,
     vehicleNo: data.vehicleNo,
     transportPo: data.transportPo,
@@ -212,17 +208,17 @@ export async function saveChallan(
       challan.lines.flatMap((line) => [
         {
           itemId: line.itemId,
-          locationId: plant._id,
+          locationId: customerLocation._id,
           qty: -line.qty,
           docLineId: line._id,
-          remark: `Issued to ${party.name}`,
+          remark: `Despatched by ${party.name}`,
         },
         {
           itemId: line.itemId,
-          locationId: vendorLocation._id,
+          locationId: plant._id,
           qty: line.qty,
           docLineId: line._id,
-          remark: `Received at ${party.name}`,
+          remark: `Received from ${party.name}`,
         },
       ]),
       session,
