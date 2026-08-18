@@ -13,6 +13,7 @@
     "import-docs": "tsx src/db/import-documents.ts",
     "import-rates": "tsx src/db/import-material-rates.ts",
     "switch-role": "tsx src/db/switch-to-job-worker.ts",
+    "fix-sales-invoice-stock": "tsx src/db/fix-sales-invoice-stock.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },

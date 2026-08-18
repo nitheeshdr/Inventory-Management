@@ -40,7 +40,7 @@ export default async function EditSalesInvoicePage({
       </Link>
       <PageHeader
         title={`Edit invoice ${invoice.invoiceNo}`}
-        subtitle="Saving re-posts the stock movements for this invoice."
+        subtitle="Money only — editing a bill never touches stock."
       />
       <SalesInvoiceForm
         items={items}

@@ -102,7 +102,6 @@ export function SalesInvoiceForm({
   );
 
   const [error, setError] = useState<string | null>(null);
-  const [warnings, setWarnings] = useState<string[]>([]);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const customer = customers.find((c) => c._id === header.partyId);
@@ -143,7 +142,6 @@ export function SalesInvoiceForm({
 
   function submit() {
     setError(null);
-    setWarnings([]);
     setFieldErrors({});
 
     const lines = rows
@@ -170,11 +168,6 @@ export function SalesInvoiceForm({
         setFieldErrors(result.fieldErrors ?? {});
         return;
       }
-      if (result.warnings?.length) {
-        setWarnings(result.warnings);
-        setTimeout(() => router.push(`/sales-invoices/${result.data._id}`), 2500);
-        return;
-      }
       router.push(`/sales-invoices/${result.data._id}`);
     });
   }
@@ -185,17 +178,6 @@ export function SalesInvoiceForm({
         <div className="flex items-start gap-2 rounded-md border border-danger/30 bg-danger-soft px-3 py-2.5 text-sm text-danger">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={2} />
           <span>{error}</span>
-        </div>
-      )}
-
-      {warnings.length > 0 && (
-        <div className="rounded-md border border-warning/30 bg-warning-soft px-3 py-2.5 text-sm text-warning">
-          <p className="font-medium">Saved, but check these stock balances:</p>
-          <ul className="mt-1 list-disc space-y-0.5 pl-5 text-[13px]">
-            {warnings.map((warning) => (
-              <li key={warning}>{warning}</li>
-            ))}
-          </ul>
         </div>
       )}
 

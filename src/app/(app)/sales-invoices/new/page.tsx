@@ -27,7 +27,7 @@ export default async function NewSalesInvoicePage() {
       </Link>
       <PageHeader
         title="New sales invoice"
-        subtitle="Tax splits automatically by the customer's state code."
+        subtitle="The job-work bill — money only, no stock moves. Tax splits automatically by the customer's state code."
       />
 
       {customers.length === 0 ? (

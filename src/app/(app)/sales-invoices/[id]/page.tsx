@@ -89,8 +89,7 @@ export default async function SalesInvoiceDetailPage({
 
       {invoice.status === "cancelled" && (
         <div className="mb-4 rounded-md border border-danger/30 bg-danger-soft px-3 py-2.5 text-sm text-danger">
-          Cancelled on {formatDate(invoice.cancelledAt)} — {invoice.cancelReason}. The stock has
-          been returned to the plant balance.
+          Cancelled on {formatDate(invoice.cancelledAt)} — {invoice.cancelReason}.
         </div>
       )}
 
@@ -175,7 +174,7 @@ export default async function SalesInvoiceDetailPage({
           <CancelDocButton
             action={cancel}
             label="Cancel invoice"
-            confirmTitle="Cancel this invoice and return the stock to the plant?"
+            confirmTitle="Cancel this invoice? No stock is affected — bills are money only."
           />
         </div>
       )}

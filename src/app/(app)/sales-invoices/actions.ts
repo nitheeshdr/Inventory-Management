@@ -5,7 +5,7 @@ import { Types } from "mongoose";
 import { z } from "zod";
 import { connectDb, withTransaction } from "@/db/connect";
 import { CompanyProfile, Item, Party, SalesInvoice } from "@/db/models";
-import { checkAvailability, postMovements, reverseMovements } from "@/lib/ledger";
+import { reverseMovements } from "@/lib/ledger";
 import { isInterState, lineTaxable, roundOffDelta, splitTax } from "@/lib/gst";
 import { amountInWords, round2, round3 } from "@/lib/format";
 import { ensurePlantLocation } from "@/lib/setup";
@@ -41,9 +41,13 @@ function zodErrors(error: z.ZodError): Record<string, string> {
 }
 
 /**
- * Outward sale of finished goods. Tax splits into CGST+SGST within Andhra
- * Pradesh and a single IGST outside it, decided by the customer's state code.
- * Stock leaves the plant.
+ * A job-work bill — the labour charge for processing, not a sale of goods.
+ * We are the job worker: the customer owns the material throughout, and it
+ * already left the plant's books on the return note (GRN) that sent it back
+ * to them. This document is money only, exactly like a purchase invoice —
+ * it must never touch the stock ledger. Tax splits into CGST+SGST within
+ * Andhra Pradesh and a single IGST outside it, decided by the customer's
+ * state code.
  */
 export async function saveSalesInvoice(
   input: SalesInvoiceInput,
@@ -139,18 +143,6 @@ export async function saveSalesInvoice(
   const totalTax = round2(cgstAmount + sgstAmount + igstAmount);
   const { roundOff, rounded } = roundOffDelta(round2(subtotal + totalTax));
 
-  const warnings: string[] = [];
-  const shortfalls = await checkAvailability(
-    plant._id,
-    lines.map((line) => ({ itemId: line.itemId, qty: line.qty })),
-    existing ? { docType: "sales_invoice", docId: existing._id } : undefined,
-  );
-  for (const shortfall of shortfalls) {
-    warnings.push(
-      `${shortfall.itemCode} — invoicing ${shortfall.requested} but only ${shortfall.available} in the plant.`,
-    );
-  }
-
   const invoiceDate = new Date(data.invoiceDate);
 
   const payload = {
@@ -187,24 +179,6 @@ export async function saveSalesInvoice(
 
     if (!invoice) throw new Error("Could not save the invoice.");
 
-    await postMovements(
-      {
-        docType: "sales_invoice",
-        docId: invoice._id,
-        docNo: invoice.invoiceNo,
-        movementDate: invoiceDate,
-        partyId: party._id,
-      },
-      invoice.lines.map((line) => ({
-        itemId: line.itemId,
-        locationId: plant._id,
-        qty: -line.qty,
-        docLineId: line._id,
-        remark: `Sold to ${party.name}`,
-      })),
-      session,
-    );
-
     return invoice;
   });
 
@@ -212,7 +186,7 @@ export async function saveSalesInvoice(
   revalidatePath("/stock");
   revalidatePath("/");
 
-  return { ok: true, data: { _id: saved._id.toString() }, warnings };
+  return { ok: true, data: { _id: saved._id.toString() } };
 }
 
 export async function cancelSalesInvoice(

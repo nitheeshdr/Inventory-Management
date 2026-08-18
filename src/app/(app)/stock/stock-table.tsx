@@ -68,7 +68,6 @@ export function StockTable({
 
     return rows.filter((row) => {
       if (q && !`${row.itemCode} ${row.description}`.toLowerCase().includes(q)) return false;
-      if (vendorLocationId && qtyAt(row, vendorLocationId) === 0) return false;
 
       switch (filter) {
         case "plant":
@@ -83,7 +82,7 @@ export function StockTable({
           return true;
       }
     });
-  }, [rows, query, filter, vendorLocationId]);
+  }, [rows, query, filter]);
 
   const totals = useMemo(
     () =>
@@ -147,15 +146,18 @@ export function StockTable({
         </span>
       </div>
 
+      {vendorLocation && visible.every((row) => qtyAt(row, vendorLocationId) === 0) && (
+        <div className="mb-2 rounded-md border border-border bg-surface-2 px-3 py-2 text-xs text-fg-muted">
+          No inward challan or return has ever moved stock through {vendorLocation.name} — every
+          item below is genuinely at 0 for this account, not a broken filter.
+        </div>
+      )}
+
       {visible.length === 0 ? (
         <TableWrap>
           <EmptyState
-            title={vendorLocation ? `Nothing recorded ${vendorLocation.name} yet` : "No items match"}
-            description={
-              vendorLocation
-                ? "No inward challan or return has ever moved stock through this account — it isn't a broken filter, there's just no ledger history for it yet."
-                : "Try a different search term or clear the filter."
-            }
+            title="No items match"
+            description="Try a different search term or clear the filter."
           />
         </TableWrap>
       ) : (
