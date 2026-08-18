@@ -1,21 +1,10 @@
 import Link from "next/link";
 import { Plus } from "lucide-react";
-import {
-  Button,
-  Chip,
-  EmptyState,
-  PageHeader,
-  Table,
-  TableWrap,
-  Td,
-  TdNum,
-  Th,
-  ThNum,
-} from "@/components/ui/primitives";
-import { DocStatusChip } from "@/components/status-chip";
+import { Button, EmptyState, PageHeader, TableWrap } from "@/components/ui/primitives";
 import { connectDb } from "@/db/connect";
 import { Grn, Party } from "@/db/models";
-import { formatDate, formatQty, round3 } from "@/lib/format";
+import { round3 } from "@/lib/format";
+import { GrnListClient, type GrnListRow } from "./grn-list-client";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +17,26 @@ export default async function GrnPage() {
   ]);
 
   const partyName = new Map(parties.map((p) => [p._id.toString(), p.name]));
+
+  const rows: GrnListRow[] = notes.map((note) => ({
+    _id: note._id.toString(),
+    grnNo: note.grnNo,
+    vendorDocNo: note.vendorDocNo ?? "",
+    grnDate: note.grnDate.toISOString(),
+    partyName: partyName.get(note.partyId.toString()) ?? "—",
+    lineCount: note.lines.length,
+    processed: round3(
+      note.lines
+        .filter((line) => line.lineKind === "processed")
+        .reduce((total, line) => total + line.qty, 0),
+    ),
+    rejected: round3(
+      note.lines
+        .filter((line) => line.lineKind !== "processed")
+        .reduce((total, line) => total + line.qty, 0),
+    ),
+    status: note.status === "cancelled" ? "cancelled" : "open",
+  }));
 
   return (
     <>
@@ -59,68 +68,7 @@ export default async function GrnPage() {
           />
         </TableWrap>
       ) : (
-        <TableWrap className="max-h-[72vh] overflow-y-auto">
-          <Table>
-            <thead>
-              <tr>
-                <Th>GRN no</Th>
-                <Th>Vendor note</Th>
-                <Th>Date</Th>
-                <Th>Customer</Th>
-                <ThNum>Lines</ThNum>
-                <ThNum>Processed</ThNum>
-                <ThNum>Rejected</ThNum>
-                <ThNum>Total qty</ThNum>
-                <Th>Status</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {notes.map((note) => {
-                const processed = round3(
-                  note.lines
-                    .filter((line) => line.lineKind === "processed")
-                    .reduce((total, line) => total + line.qty, 0),
-                );
-                const rejected = round3(
-                  note.lines
-                    .filter((line) => line.lineKind !== "processed")
-                    .reduce((total, line) => total + line.qty, 0),
-                );
-
-                return (
-                  <tr key={note._id.toString()} className="transition-colors hover:bg-surface-2">
-                    <Td>
-                      <Link
-                        href={`/grn/${note._id.toString()}`}
-                        className="font-mono text-[13px] text-accent hover:underline"
-                      >
-                        {note.grnNo}
-                      </Link>
-                    </Td>
-                    <Td className="font-mono text-[13px] text-fg-muted">
-                      {note.vendorDocNo ?? "—"}
-                    </Td>
-                    <Td className="whitespace-nowrap text-fg-muted">
-                      {formatDate(note.grnDate)}
-                    </Td>
-                    <Td>{partyName.get(note.partyId.toString()) ?? "—"}</Td>
-                    <TdNum className="text-fg-muted">{note.lines.length}</TdNum>
-                    <TdNum className="text-success">{formatQty(processed)}</TdNum>
-                    <TdNum className="text-warning">{formatQty(rejected)}</TdNum>
-                    <TdNum className="font-medium">{formatQty(processed + rejected)}</TdNum>
-                    <Td>
-                      {note.status === "cancelled" ? (
-                        <DocStatusChip status="cancelled" />
-                      ) : (
-                        <Chip tone="success">Despatched</Chip>
-                      )}
-                    </Td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </Table>
-        </TableWrap>
+        <GrnListClient rows={rows} />
       )}
     </>
   );

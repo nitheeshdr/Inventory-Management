@@ -2,8 +2,9 @@
 
 import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, Search } from "lucide-react";
+import { AlertTriangle, Download, Search } from "lucide-react";
 import {
+  Button,
   Chip,
   EmptyState,
   Input,
@@ -16,6 +17,8 @@ import {
   ThNum,
 } from "@/components/ui/primitives";
 import { formatAmount, formatQty, round3 } from "@/lib/format";
+import { exportRowsToXlsx } from "@/lib/export-xlsx";
+import { ITEM_TYPES, type ItemType } from "@/lib/constants";
 import type { ItemStockRow } from "@/lib/queries/stock";
 
 type Filter = "all" | "plant" | "vendor" | "low" | "zero";
@@ -27,6 +30,13 @@ const FILTERS: { value: Filter; label: string }[] = [
   { value: "low", label: "Below reorder level" },
   { value: "zero", label: "Nil stock" },
 ];
+
+const ITEM_TYPE_LABELS: Record<ItemType, string> = {
+  component: "Component",
+  processed: "Processed",
+  finished_good: "Finished good",
+  raw_material: "Raw material",
+};
 
 export interface StockLocationOption {
   _id: string;
@@ -44,6 +54,7 @@ export function StockTable({
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [vendorLocationId, setVendorLocationId] = useState("");
+  const [typeFilter, setTypeFilter] = useState<"all" | ItemType>("all");
 
   const vendorLocation = locations.find((l) => l._id === vendorLocationId) ?? null;
 
@@ -68,6 +79,7 @@ export function StockTable({
 
     return rows.filter((row) => {
       if (q && !`${row.itemCode} ${row.description}`.toLowerCase().includes(q)) return false;
+      if (typeFilter !== "all" && row.itemType !== typeFilter) return false;
 
       switch (filter) {
         case "plant":
@@ -82,7 +94,7 @@ export function StockTable({
           return true;
       }
     });
-  }, [rows, query, filter]);
+  }, [rows, query, filter, typeFilter]);
 
   const totals = useMemo(
     () =>
@@ -127,6 +139,18 @@ export function StockTable({
             </option>
           ))}
         </Select>
+        <Select
+          value={typeFilter}
+          onChange={(event) => setTypeFilter(event.target.value as "all" | ItemType)}
+          className="w-auto min-w-[11rem]"
+        >
+          <option value="all">All types</option>
+          {ITEM_TYPES.map((type) => (
+            <option key={type} value={type}>
+              {ITEM_TYPE_LABELS[type]}
+            </option>
+          ))}
+        </Select>
         {locations.length > 0 && (
           <Select
             value={vendorLocationId}
@@ -144,6 +168,34 @@ export function StockTable({
         <span className="text-xs text-fg-muted">
           {visible.length} of {rows.length} items
         </span>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={visible.length === 0}
+          onClick={() =>
+            exportRowsToXlsx(
+              `stock-${new Date().toISOString().slice(0, 10)}.xlsx`,
+              "Stock",
+              visible.map((row) => {
+                const scoped = scopedTotals(row);
+                return {
+                  "Item code": row.itemCode,
+                  Description: row.description,
+                  Type: ITEM_TYPE_LABELS[row.itemType as ItemType] ?? row.itemType,
+                  "In our factory": row.plantQty,
+                  [vendorLocation ? vendorLocation.name : "With customer"]: vendorLocationId
+                    ? qtyAt(row, vendorLocationId)
+                    : row.offSiteQty,
+                  Total: scoped.qty,
+                  Value: scoped.value,
+                };
+              }),
+            )
+          }
+        >
+          <Download className="h-3.5 w-3.5" strokeWidth={2} />
+          Export
+        </Button>
       </div>
 
       {vendorLocation && visible.every((row) => qtyAt(row, vendorLocationId) === 0) && (

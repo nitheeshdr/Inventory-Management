@@ -1,19 +1,9 @@
 import Link from "next/link";
 import { Plus } from "lucide-react";
-import {
-  Button,
-  EmptyState,
-  PageHeader,
-  Table,
-  TableWrap,
-  Td,
-  TdNum,
-  Th,
-  ThNum,
-} from "@/components/ui/primitives";
-import { AgingChip, DocStatusChip } from "@/components/status-chip";
+import { Button, EmptyState, PageHeader, TableWrap } from "@/components/ui/primitives";
 import { getChallanRegister } from "@/lib/queries/challans";
-import { formatAmount, formatDate, formatQty } from "@/lib/format";
+import { formatAmount, formatQty } from "@/lib/format";
+import { ChallansClient } from "./challans-client";
 
 export const dynamic = "force-dynamic";
 
@@ -63,57 +53,7 @@ export default async function ChallansPage() {
           />
         </TableWrap>
       ) : (
-        <TableWrap className="max-h-[72vh] overflow-y-auto">
-          <Table>
-            <thead>
-              <tr>
-                <Th>Challan no</Th>
-                <Th>Date</Th>
-                <Th>Customer</Th>
-                <ThNum>Lines</ThNum>
-                <ThNum>Sent</ThNum>
-                <ThNum>Returned</ThNum>
-                <ThNum>Pending</ThNum>
-                <ThNum>Pending value</ThNum>
-                <Th>Status</Th>
-                <Th>Deadline</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row._id} className="transition-colors hover:bg-surface-2">
-                  <Td>
-                    <Link
-                      href={`/challans/${row._id}`}
-                      className="font-mono text-[13px] text-accent hover:underline"
-                    >
-                      {row.challanNo}
-                    </Link>
-                  </Td>
-                  <Td className="whitespace-nowrap text-fg-muted">
-                    {formatDate(row.challanDate)}
-                  </Td>
-                  <Td>{row.partyName}</Td>
-                  <TdNum className="text-fg-muted">{row.lineCount}</TdNum>
-                  <TdNum>{formatQty(row.sentQty)}</TdNum>
-                  <TdNum className="text-success">{formatQty(row.returnedQty)}</TdNum>
-                  <TdNum className="font-medium">{formatQty(row.pendingQty)}</TdNum>
-                  <TdNum className="text-fg-muted">{formatAmount(row.pendingValue)}</TdNum>
-                  <Td>
-                    <DocStatusChip status={row.status} />
-                  </Td>
-                  <Td>
-                    {row.status === "closed" || row.status === "cancelled" ? (
-                      <span className="text-xs text-fg-subtle">—</span>
-                    ) : (
-                      <AgingChip daysOpen={row.daysOpen} />
-                    )}
-                  </Td>
-                </tr>
-              ))}
-            </tbody>
-          </Table>
-        </TableWrap>
+        <ChallansClient rows={rows} />
       )}
     </>
   );

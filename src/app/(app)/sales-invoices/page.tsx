@@ -1,21 +1,9 @@
 import Link from "next/link";
 import { Plus } from "lucide-react";
-import {
-  Button,
-  Chip,
-  EmptyState,
-  PageHeader,
-  Table,
-  TableWrap,
-  Td,
-  TdNum,
-  Th,
-  ThNum,
-} from "@/components/ui/primitives";
-import { DocStatusChip } from "@/components/status-chip";
+import { Button, EmptyState, PageHeader, TableWrap } from "@/components/ui/primitives";
 import { connectDb } from "@/db/connect";
 import { Party, SalesInvoice } from "@/db/models";
-import { formatAmount, formatDate, formatQty } from "@/lib/format";
+import { SalesInvoicesClient, type SalesInvoiceListRow } from "./sales-invoices-client";
 
 export const dynamic = "force-dynamic";
 
@@ -29,11 +17,24 @@ export default async function SalesInvoicesPage() {
 
   const partyName = new Map(parties.map((p) => [p._id.toString(), p.name]));
 
+  const rows: SalesInvoiceListRow[] = invoices.map((invoice) => ({
+    _id: invoice._id.toString(),
+    invoiceNo: invoice.invoiceNo,
+    invoiceDate: invoice.invoiceDate.toISOString(),
+    partyName: partyName.get(invoice.partyId.toString()) ?? "—",
+    totalQty: invoice.totalQty,
+    subtotal: invoice.subtotal,
+    totalTax: invoice.totalTax,
+    grandTotal: invoice.grandTotal,
+    isInterState: invoice.isInterState,
+    status: invoice.status,
+  }));
+
   return (
     <>
       <PageHeader
         title="Sales invoices"
-        subtitle="Finished goods leaving the plant for customers."
+        subtitle="Job-work bills for your customers — money only, no stock moves."
         action={
           <Link href="/sales-invoices/new">
             <Button variant="primary" size="sm">
@@ -59,53 +60,7 @@ export default async function SalesInvoicesPage() {
           />
         </TableWrap>
       ) : (
-        <TableWrap className="max-h-[72vh] overflow-y-auto">
-          <Table>
-            <thead>
-              <tr>
-                <Th>Invoice no</Th>
-                <Th>Date</Th>
-                <Th>Customer</Th>
-                <ThNum>Qty</ThNum>
-                <ThNum>Before tax</ThNum>
-                <ThNum>Tax</ThNum>
-                <ThNum>Grand total</ThNum>
-                <Th>Tax type</Th>
-                <Th>Status</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {invoices.map((invoice) => (
-                <tr key={invoice._id.toString()} className="transition-colors hover:bg-surface-2">
-                  <Td>
-                    <Link
-                      href={`/sales-invoices/${invoice._id.toString()}`}
-                      className="font-mono text-[13px] text-accent hover:underline"
-                    >
-                      {invoice.invoiceNo}
-                    </Link>
-                  </Td>
-                  <Td className="whitespace-nowrap text-fg-muted">
-                    {formatDate(invoice.invoiceDate)}
-                  </Td>
-                  <Td>{partyName.get(invoice.partyId.toString()) ?? "—"}</Td>
-                  <TdNum>{formatQty(invoice.totalQty)}</TdNum>
-                  <TdNum>{formatAmount(invoice.subtotal)}</TdNum>
-                  <TdNum className="text-fg-muted">{formatAmount(invoice.totalTax)}</TdNum>
-                  <TdNum className="font-medium">{formatAmount(invoice.grandTotal)}</TdNum>
-                  <Td>
-                    <Chip tone={invoice.isInterState ? "info" : "neutral"}>
-                      {invoice.isInterState ? "IGST" : "CGST + SGST"}
-                    </Chip>
-                  </Td>
-                  <Td>
-                    <DocStatusChip status={invoice.status} />
-                  </Td>
-                </tr>
-              ))}
-            </tbody>
-          </Table>
-        </TableWrap>
+        <SalesInvoicesClient rows={rows} />
       )}
     </>
   );

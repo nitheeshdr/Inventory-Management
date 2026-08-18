@@ -1,21 +1,9 @@
 import Link from "next/link";
 import { Plus } from "lucide-react";
-import {
-  Button,
-  Chip,
-  EmptyState,
-  PageHeader,
-  Table,
-  TableWrap,
-  Td,
-  TdNum,
-  Th,
-  ThNum,
-} from "@/components/ui/primitives";
-import { InvoiceStatusChip } from "@/components/status-chip";
+import { Button, EmptyState, PageHeader, TableWrap } from "@/components/ui/primitives";
 import { connectDb } from "@/db/connect";
 import { Party, PurchaseInvoice } from "@/db/models";
-import { formatAmount, formatDate, formatQty } from "@/lib/format";
+import { PurchaseInvoicesClient, type PurchaseInvoiceListRow } from "./purchase-invoices-client";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +16,19 @@ export default async function PurchaseInvoicesPage() {
   ]);
 
   const partyName = new Map(parties.map((p) => [p._id.toString(), p.name]));
+
+  const rows: PurchaseInvoiceListRow[] = invoices.map((invoice) => ({
+    _id: invoice._id.toString(),
+    invoiceNo: invoice.invoiceNo,
+    invoiceDate: invoice.invoiceDate.toISOString(),
+    partyName: partyName.get(invoice.partyId.toString()) ?? "—",
+    totalQty: invoice.totalQty,
+    subtotal: invoice.subtotal,
+    totalTax: invoice.totalTax,
+    grandTotal: invoice.grandTotal,
+    status: invoice.status,
+    flagCount: invoice.flags.length,
+  }));
 
   return (
     <>
@@ -59,56 +60,7 @@ export default async function PurchaseInvoicesPage() {
           />
         </TableWrap>
       ) : (
-        <TableWrap className="max-h-[72vh] overflow-y-auto">
-          <Table>
-            <thead>
-              <tr>
-                <Th>Invoice no</Th>
-                <Th>Date</Th>
-                <Th>Supplier</Th>
-                <ThNum>Qty</ThNum>
-                <ThNum>Before tax</ThNum>
-                <ThNum>Tax</ThNum>
-                <ThNum>Grand total</ThNum>
-                <Th>Status</Th>
-                              </tr>
-            </thead>
-            <tbody>
-              {invoices.map((invoice) => (
-                <tr key={invoice._id.toString()} className="transition-colors hover:bg-surface-2">
-                  <Td>
-                    <Link
-                      href={`/purchase-invoices/${invoice._id.toString()}`}
-                      className="font-mono text-[13px] text-accent hover:underline"
-                    >
-                      {invoice.invoiceNo}
-                    </Link>
-                  </Td>
-                  <Td className="whitespace-nowrap text-fg-muted">
-                    {formatDate(invoice.invoiceDate)}
-                  </Td>
-                  <Td>{partyName.get(invoice.partyId.toString()) ?? "—"}</Td>
-                  <TdNum>{formatQty(invoice.totalQty)}</TdNum>
-                  <TdNum>{formatAmount(invoice.subtotal)}</TdNum>
-                  <TdNum className="text-fg-muted">{formatAmount(invoice.totalTax)}</TdNum>
-                  <TdNum className="font-medium">{formatAmount(invoice.grandTotal)}</TdNum>
-                  <Td>
-                    <InvoiceStatusChip status={invoice.status} />
-                  </Td>
-                  <Td>
-                    {invoice.flags.length === 0 ? (
-                      <Chip tone="success">Clean</Chip>
-                    ) : (
-                      <Chip tone="danger">
-                        {invoice.flags.length} {invoice.flags.length === 1 ? "issue" : "issues"}
-                      </Chip>
-                    )}
-                  </Td>
-                </tr>
-              ))}
-            </tbody>
-          </Table>
-        </TableWrap>
+        <PurchaseInvoicesClient rows={rows} />
       )}
     </>
   );

@@ -9,7 +9,7 @@ const DOC_TONE: Record<DocStatus, "neutral" | "accent" | "success" | "warning" |
   cancelled: "danger",
 };
 
-const DOC_LABEL: Record<DocStatus, string> = {
+export const DOC_LABEL: Record<DocStatus, string> = {
   draft: "Draft",
   open: "Open",
   partially_returned: "Partial",
@@ -29,7 +29,7 @@ const INVOICE_TONE: Record<InvoiceStatus, "neutral" | "info" | "warning" | "succ
   cancelled: "danger",
 };
 
-const INVOICE_LABEL: Record<InvoiceStatus, string> = {
+export const INVOICE_LABEL: Record<InvoiceStatus, string> = {
   draft: "Draft",
   verified: "Verified",
   flagged: "Flagged",
