@@ -5,7 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import { PageHeader } from "@/components/ui/primitives";
 import { connectDb } from "@/db/connect";
 import { PurchaseInvoice } from "@/db/models";
-import { getItemOptions, getParties } from "@/lib/queries/masters";
+import { getItemOptions, getParties, getRoutes } from "@/lib/queries/masters";
 import { toDateInputValue } from "@/lib/format";
 import { PurchaseInvoiceForm } from "../../invoice-form";
 
@@ -23,7 +23,14 @@ export default async function EditPurchaseInvoicePage({
   const invoice = await PurchaseInvoice.findById(id).lean();
   if (!invoice || invoice.status === "cancelled") notFound();
 
-  const [items, parties] = await Promise.all([getItemOptions(), getParties("supplier")]);
+  // Every party, not just "supplier" — a job-work vendor account (Masters →
+  // Process routes) can also bill us, and its agreed rate should offer itself
+  // when picked here.
+  const [items, parties, routes] = await Promise.all([
+    getItemOptions(),
+    getParties(),
+    getRoutes(),
+  ]);
 
   return (
     <>
@@ -41,6 +48,7 @@ export default async function EditPurchaseInvoicePage({
       <PurchaseInvoiceForm
         items={items}
         parties={parties}
+        routes={routes}
         initial={{
           _id: id,
           invoiceNo: invoice.invoiceNo,

@@ -92,6 +92,17 @@ export async function saveSalesInvoice(
   }).lean();
   const itemById = new Map(items.map((item) => [item._id.toString(), item]));
 
+  const focCodes = data.lines
+    .map((line) => itemById.get(line.itemId))
+    .filter((item) => item?.isFoc)
+    .map((item) => item!.itemCode);
+  if (focCodes.length > 0) {
+    return {
+      ok: false,
+      error: `${[...new Set(focCodes)].join(", ")} ${focCodes.length > 1 ? "are" : "is"} free-of-cost and cannot be billed — record them through the Return module instead.`,
+    };
+  }
+
   const interState = isInterState(company?.stateCode ?? "37", party.stateCode);
 
   const lines = data.lines.map((line, index) => {

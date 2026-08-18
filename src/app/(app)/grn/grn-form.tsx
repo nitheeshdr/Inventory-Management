@@ -132,6 +132,32 @@ export function GrnForm({
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
+  const focItems = useMemo(() => items.filter((item) => item.isFoc), [items]);
+  const [focItem, setFocItem] = useState<ItemOption | null>(null);
+  const [focQty, setFocQty] = useState("");
+
+  function addFocLine() {
+    if (!focItem || !(Number(focQty) > 0)) return;
+    setRows((prev) => [
+      ...prev,
+      {
+        key: crypto.randomUUID(),
+        challanId: "",
+        challanNo: "",
+        challanLineId: "",
+        inputItem: { _id: focItem._id, itemCode: focItem.itemCode, description: focItem.description },
+        pendingQty: 0,
+        lineKind: "foc",
+        receivedItem: focItem,
+        routeId: undefined,
+        qty: focQty,
+        rejectionReason: "",
+      },
+    ]);
+    setFocItem(null);
+    setFocQty("");
+  }
+
   const availableLines = useMemo(() => {
     const used = new Map<string, number>();
     for (const row of rows) {
@@ -151,10 +177,12 @@ export function GrnForm({
   function changeParty(partyId: string) {
     setHeader((prev) => ({ ...prev, partyId }));
     setRows((prev) =>
-      prev.filter((row) =>
-        pendingLines.some(
-          (line) => line.challanLineId === row.challanLineId && line.partyId === partyId,
-        ),
+      prev.filter(
+        (row) =>
+          row.lineKind === "foc" ||
+          pendingLines.some(
+            (line) => line.challanLineId === row.challanLineId && line.partyId === partyId,
+          ),
       ),
     );
   }
@@ -228,11 +256,19 @@ export function GrnForm({
       return;
     }
 
-    const overRow = rows.find((row) => Number(row.qty) > row.pendingQty);
+    const overRow = rows.find(
+      (row) => row.lineKind !== "foc" && Number(row.qty) > row.pendingQty,
+    );
     if (overRow) {
       setError(
         `${overRow.inputItem.itemCode} on challan ${overRow.challanNo}: only ${overRow.pendingQty} pcs are still in our factory.`,
       );
+      return;
+    }
+
+    const nonFocRow = rows.find((row) => row.lineKind === "foc" && !row.receivedItem!.isFoc);
+    if (nonFocRow) {
+      setError(`${nonFocRow.receivedItem!.itemCode} is not marked FOC in the item master.`);
       return;
     }
 
@@ -243,17 +279,20 @@ export function GrnForm({
         .map((row) => ({
           lineKind: row.lineKind,
           itemId: row.receivedItem!._id,
-          inputItemId: row.inputItem._id,
+          inputItemId: row.lineKind === "foc" ? row.receivedItem!._id : row.inputItem._id,
           routeId: row.routeId,
           qty: Number(row.qty),
           rejectionReason: row.rejectionReason || undefined,
-          allocations: [
-            {
-              challanId: row.challanId,
-              challanLineId: row.challanLineId,
-              qty: Number(row.qty),
-            },
-          ],
+          allocations:
+            row.lineKind === "foc"
+              ? []
+              : [
+                  {
+                    challanId: row.challanId,
+                    challanLineId: row.challanLineId,
+                    qty: Number(row.qty),
+                  },
+                ],
         })),
     };
 
@@ -365,32 +404,45 @@ export function GrnForm({
               </thead>
               <tbody>
                 {rows.map((row) => {
-                  const over = Number(row.qty) > row.pendingQty;
+                  const isFocRow = row.lineKind === "foc";
+                  const over = !isFocRow && Number(row.qty) > row.pendingQty;
                   return (
                     <tr key={row.key}>
-                      <Td className="font-mono text-[13px]">{row.challanNo}</Td>
-                      <Td>
-                        <span className="font-mono text-[13px]">{row.inputItem.itemCode}</span>
-                        <span className="ml-1.5 text-xs text-fg-muted">
-                          {row.inputItem.description}
-                        </span>
+                      <Td className="font-mono text-[13px]">
+                        {isFocRow ? <Chip tone="warning">FOC</Chip> : row.challanNo}
                       </Td>
                       <Td>
-                        <Select
-                          value={row.lineKind}
-                          onChange={(e) => changeKind(row, e.target.value as GrnLineKind)}
-                          className="h-8"
-                        >
-                          {GRN_LINE_KINDS.map((kind) => (
-                            <option key={kind} value={kind}>
-                              {GRN_LINE_KIND_LABELS[kind]}
-                            </option>
-                          ))}
-                        </Select>
+                        {isFocRow ? (
+                          <span className="text-xs text-fg-subtle">— free of cost —</span>
+                        ) : (
+                          <>
+                            <span className="font-mono text-[13px]">{row.inputItem.itemCode}</span>
+                            <span className="ml-1.5 text-xs text-fg-muted">
+                              {row.inputItem.description}
+                            </span>
+                          </>
+                        )}
+                      </Td>
+                      <Td>
+                        {isFocRow ? (
+                          <Chip tone="warning">{GRN_LINE_KIND_LABELS.foc}</Chip>
+                        ) : (
+                          <Select
+                            value={row.lineKind}
+                            onChange={(e) => changeKind(row, e.target.value as GrnLineKind)}
+                            className="h-8"
+                          >
+                            {GRN_LINE_KINDS.filter((kind) => kind !== "foc").map((kind) => (
+                              <option key={kind} value={kind}>
+                                {GRN_LINE_KIND_LABELS[kind]}
+                              </option>
+                            ))}
+                          </Select>
+                        )}
                       </Td>
                       <Td>
                         <ItemCombobox
-                          items={items}
+                          items={isFocRow ? focItems : items}
                           value={row.receivedItem}
                           onSelect={(item) => patchRow(row.key, { receivedItem: item })}
                         />
@@ -409,7 +461,9 @@ export function GrnForm({
                           className={`tnum h-8 text-right ${over ? "border-danger" : ""}`}
                         />
                       </Td>
-                      <TdNum className="text-fg-muted">{formatQty(row.pendingQty)}</TdNum>
+                      <TdNum className="text-fg-muted">
+                        {isFocRow ? "—" : formatQty(row.pendingQty)}
+                      </TdNum>
                       <Td>
                         <Input
                           value={row.rejectionReason}
@@ -438,6 +492,33 @@ export function GrnForm({
           </TableWrap>
         )}
       </Card>
+
+      {focItems.length > 0 && (
+        <Card>
+          <CardHeader
+            title="Add FOC item"
+            subtitle="Free-of-cost goods for this customer — never billed, no challan to allocate against."
+          />
+          <div className="flex flex-wrap items-end gap-3 p-4">
+            <Field label="Item" className="min-w-[16rem]">
+              <ItemCombobox items={focItems} value={focItem} onSelect={setFocItem} />
+            </Field>
+            <Field label="Qty" className="w-28">
+              <Input
+                type="number"
+                inputMode="decimal"
+                value={focQty}
+                onChange={(e) => setFocQty(e.target.value)}
+                className="tnum h-8 text-right"
+              />
+            </Field>
+            <Button size="sm" variant="outline" onClick={addFocLine} disabled={!focItem}>
+              <Plus className="h-3.5 w-3.5" strokeWidth={2} />
+              Add
+            </Button>
+          </div>
+        </Card>
+      )}
 
       <Card>
         <CardHeader

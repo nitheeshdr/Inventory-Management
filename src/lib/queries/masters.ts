@@ -102,6 +102,7 @@ export async function getItemOptions(types?: string[]): Promise<ItemOption[]> {
     itemType: item.itemType,
     standardValue: item.standardValue,
     gstRate: item.gstRate,
+    isFoc: item.isFoc,
   }));
 }
 

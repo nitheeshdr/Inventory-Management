@@ -12,6 +12,7 @@ export interface ItemOption {
   itemType: ItemType;
   standardValue: number;
   gstRate: number;
+  isFoc: boolean;
 }
 
 /** Feeds the item picker in every line grid. */
@@ -40,6 +41,7 @@ export async function GET(request: Request) {
     itemType: item.itemType,
     standardValue: item.standardValue,
     gstRate: item.gstRate,
+    isFoc: item.isFoc,
   }));
 
   return NextResponse.json({ items: options });

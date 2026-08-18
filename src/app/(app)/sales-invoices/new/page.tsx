@@ -10,11 +10,13 @@ export const dynamic = "force-dynamic";
 
 export default async function NewSalesInvoicePage() {
   const company = await getCompany();
-  const [items, customers, suggestedNo] = await Promise.all([
+  const [allItems, customers, suggestedNo] = await Promise.all([
     getItemOptions(),
     getParties("customer"),
     nextDocNumber(SalesInvoice, "invoiceNo", company?.salesInvoicePrefix ?? "HH"),
   ]);
+  // FOC items are never billed — they move through the Return module instead.
+  const items = allItems.filter((item) => !item.isFoc);
 
   return (
     <>

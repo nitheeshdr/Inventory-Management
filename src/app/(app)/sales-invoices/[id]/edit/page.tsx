@@ -23,11 +23,13 @@ export default async function EditSalesInvoicePage({
   const invoice = await SalesInvoice.findById(id).lean();
   if (!invoice || invoice.status === "cancelled") notFound();
 
-  const [items, customers, company] = await Promise.all([
+  const [allItems, customers, company] = await Promise.all([
     getItemOptions(),
     getParties("customer"),
     getCompany(),
   ]);
+  // FOC items are never billed — they move through the Return module instead.
+  const items = allItems.filter((item) => !item.isFoc);
 
   return (
     <>

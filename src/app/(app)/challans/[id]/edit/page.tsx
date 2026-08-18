@@ -5,7 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import { PageHeader } from "@/components/ui/primitives";
 import { connectDb } from "@/db/connect";
 import { JobWorkChallan } from "@/db/models";
-import { getItemOptions, getParties } from "@/lib/queries/masters";
+import { getItemOptions, getParties, getRoutes } from "@/lib/queries/masters";
 import { toDateInputValue } from "@/lib/format";
 import { ChallanForm } from "../../challan-form";
 
@@ -24,7 +24,11 @@ export default async function EditChallanPage({
   if (!challan) notFound();
   if (challan.status === "cancelled") notFound();
 
-  const [items, parties] = await Promise.all([getItemOptions(), getParties("customer")]);
+  const [items, parties, routes] = await Promise.all([
+    getItemOptions(),
+    getParties("customer"),
+    getRoutes(),
+  ]);
 
   return (
     <>
@@ -42,6 +46,7 @@ export default async function EditChallanPage({
       <ChallanForm
         items={items}
         parties={parties}
+        routes={routes}
         initial={{
           _id: id,
           challanNo: challan.challanNo,

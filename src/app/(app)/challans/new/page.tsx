@@ -1,16 +1,17 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { PageHeader } from "@/components/ui/primitives";
-import { getItemOptions, getParties } from "@/lib/queries/masters";
+import { getItemOptions, getParties, getRoutes } from "@/lib/queries/masters";
 import { SetupRequired } from "@/components/setup-gate";
 import { ChallanForm } from "../challan-form";
 
 export const dynamic = "force-dynamic";
 
 export default async function NewChallanPage() {
-  const [items, parties] = await Promise.all([
+  const [items, parties, routes] = await Promise.all([
     getItemOptions(),
     getParties("customer"),
+    getRoutes(),
   ]);
 
   const missing = [
@@ -51,7 +52,7 @@ export default async function NewChallanPage() {
         title="New inward challan"
         subtitle="Goods arriving from a principal for processing under Section 143 — returnable within one year."
       />
-      <ChallanForm items={items} parties={parties} />
+      <ChallanForm items={items} parties={parties} routes={routes} />
     </>
   );
 }

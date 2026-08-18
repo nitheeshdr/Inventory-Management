@@ -5,7 +5,7 @@ import { Types } from "mongoose";
 import { z } from "zod";
 import { connectDb, withTransaction } from "@/db/connect";
 import { Grn, Item, Location, Party, ProcessRoute } from "@/db/models";
-import { postMovements, reverseMovements } from "@/lib/ledger";
+import { checkAvailability, postMovements, reverseMovements } from "@/lib/ledger";
 import {
   getPendingChallanLines,
   refreshChallanStatuses,
@@ -31,20 +31,33 @@ const lineSchema = z.object({
   routeId: z.string().optional(),
   qty: z.number().positive("Quantity must be more than zero"),
   rejectionReason: z.string().trim().optional(),
-  allocations: z.array(allocationSchema).min(1, "Allocate the quantity to a challan line"),
+  // FOC lines never arrived on a challan, so they carry nothing to allocate.
+  allocations: z.array(allocationSchema).default([]),
 });
 
-const grnSchema = z.object({
-  grnNo: z.string().trim().min(1, "Return note number is required"),
-  vendorDocNo: z.string().trim().optional(),
-  grnDate: z.string().min(1, "Date is required"),
-  partyId: z.string().min(1, "Pick a customer"),
-  vehicleNo: z.string().trim().optional(),
-  grNo: z.string().trim().optional(),
-  transportRemark: z.string().trim().optional(),
-  notes: z.string().trim().optional(),
-  lines: z.array(lineSchema).min(1, "Add at least one line"),
-});
+const grnSchema = z
+  .object({
+    grnNo: z.string().trim().min(1, "Return note number is required"),
+    vendorDocNo: z.string().trim().optional(),
+    grnDate: z.string().min(1, "Date is required"),
+    partyId: z.string().min(1, "Pick a customer"),
+    vehicleNo: z.string().trim().optional(),
+    grNo: z.string().trim().optional(),
+    transportRemark: z.string().trim().optional(),
+    notes: z.string().trim().optional(),
+    lines: z.array(lineSchema).min(1, "Add at least one line"),
+  })
+  .superRefine((data, ctx) => {
+    data.lines.forEach((line, index) => {
+      if (line.lineKind !== "foc" && line.allocations.length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["lines", index, "allocations"],
+          message: "Allocate the quantity to a challan line",
+        });
+      }
+    });
+  });
 
 export type GrnInput = z.input<typeof grnSchema>;
 
@@ -131,6 +144,7 @@ export async function saveGrn(
   }
 
   for (const [index, line] of data.lines.entries()) {
+    if (line.lineKind === "foc") continue;
     const allocated = round3(
       line.allocations.reduce((total, alloc) => total + alloc.qty, 0),
     );
@@ -142,11 +156,52 @@ export async function saveGrn(
     }
   }
 
+  // The challan-pending check above is a derived figure (sent minus already
+  // returned) and can drift from the plant's real ledger balance — a stock
+  // adjustment, or a second party sharing the same item code, can eat into it
+  // without touching "pending" at all. Checking the actual balance too is what
+  // keeps a return from ever pushing real stock negative.
+  const consumedByInput = new Map<string, number>();
+  for (const line of data.lines) {
+    // FOC lines carry nothing allocated — the plant loses the full line qty.
+    const consumed =
+      line.lineKind === "foc"
+        ? round3(line.qty)
+        : round3(line.allocations.reduce((total, alloc) => total + alloc.qty, 0));
+    consumedByInput.set(
+      line.inputItemId,
+      round3((consumedByInput.get(line.inputItemId) ?? 0) + consumed),
+    );
+  }
+  const shortfalls = await checkAvailability(
+    plant._id,
+    [...consumedByInput.entries()].map(([itemId, qty]) => ({ itemId, qty })),
+    existing ? { docType: "grn", docId: existing._id } : undefined,
+  );
+  if (shortfalls.length > 0) {
+    const detail = shortfalls
+      .map((s) => `${s.itemCode}: needs ${s.requested} but only ${s.available} in our factory`)
+      .join("; ");
+    return { ok: false, error: `Not enough stock in our factory to process this return — ${detail}.` };
+  }
+
   const itemIds = [
     ...new Set(data.lines.flatMap((line) => [line.itemId, line.inputItemId])),
   ].map((id) => new Types.ObjectId(id));
   const items = await Item.find({ _id: { $in: itemIds } }).lean();
   const itemById = new Map(items.map((item) => [item._id.toString(), item]));
+
+  const nonFocCodes = data.lines
+    .filter((line) => line.lineKind === "foc")
+    .map((line) => itemById.get(line.itemId))
+    .filter((item) => item && !item.isFoc)
+    .map((item) => item!.itemCode);
+  if (nonFocCodes.length > 0) {
+    return {
+      ok: false,
+      error: `${[...new Set(nonFocCodes)].join(", ")} ${nonFocCodes.length > 1 ? "are" : "is"} not marked FOC in the item master — fix that at Masters → Items first.`,
+    };
+  }
 
   const challanNoByLine = new Map(
     candidates.map((candidate) => [candidate.challanLineId, candidate.challanNo]),
@@ -223,8 +278,12 @@ export async function saveGrn(
       grn.lines.flatMap((line) => {
         // What leaves the vendor is always the input code — that is what they
         // were holding. What arrives at the plant is the output code for
-        // processed goods and the same input code for everything else.
-        const consumedQty = line.allocations.reduce((total, alloc) => total + alloc.qty, 0);
+        // processed goods and the same input code for everything else. FOC
+        // lines never arrived on a challan, so the plant loses the full qty.
+        const consumedQty =
+          line.lineKind === "foc"
+            ? line.qty
+            : line.allocations.reduce((total, alloc) => total + alloc.qty, 0);
 
         return [
           {
@@ -232,7 +291,7 @@ export async function saveGrn(
             locationId: plant._id,
             qty: -consumedQty,
             docLineId: line._id,
-            remark: `Consumed for ${party.name}`,
+            remark: line.lineKind === "foc" ? `FOC goods sent to ${party.name}` : `Consumed for ${party.name}`,
           },
           {
             itemId: line.itemId,
@@ -242,7 +301,9 @@ export async function saveGrn(
             remark:
               line.lineKind === "processed"
                 ? `Processed goods despatched to ${party.name}`
-                : `${line.lineKind} — ${line.rejectionReason ?? "no reason given"}`,
+                : line.lineKind === "foc"
+                  ? `Free of cost — not billed`
+                  : `${line.lineKind} — ${line.rejectionReason ?? "no reason given"}`,
           },
         ];
       }),

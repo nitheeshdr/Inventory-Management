@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { Button, PageHeader } from "@/components/ui/primitives";
-import { getItemStock } from "@/lib/queries/stock";
+import { getItemStock, getLocations } from "@/lib/queries/stock";
 import { StockTable } from "./stock-table";
 
 export const dynamic = "force-dynamic";
 
 export default async function StockPage() {
-  const rows = await getItemStock();
+  const [rows, locations] = await Promise.all([getItemStock(), getLocations()]);
+  const vendorLocations = locations.filter((l) => l.kind !== "plant");
 
   return (
     <>
@@ -28,7 +29,7 @@ export default async function StockPage() {
           </>
         }
       />
-      <StockTable rows={rows} />
+      <StockTable rows={rows} locations={vendorLocations} />
     </>
   );
 }

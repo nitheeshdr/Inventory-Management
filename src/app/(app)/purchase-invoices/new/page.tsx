@@ -1,19 +1,26 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { PageHeader } from "@/components/ui/primitives";
-import { getItemOptions, getParties } from "@/lib/queries/masters";
+import { getItemOptions, getParties, getRoutes } from "@/lib/queries/masters";
 import { SetupRequired } from "@/components/setup-gate";
 import { PurchaseInvoiceForm } from "../invoice-form";
 
 export const dynamic = "force-dynamic";
 
 export default async function NewPurchaseInvoicePage() {
-  const [items, parties] = await Promise.all([getItemOptions(), getParties("supplier")]);
+  // Every party, not just "supplier" — a job-work vendor account (Masters →
+  // Process routes) can also bill us, and its agreed rate should offer itself
+  // when picked here.
+  const [items, parties, routes] = await Promise.all([
+    getItemOptions(),
+    getParties(),
+    getRoutes(),
+  ]);
 
   const missing = [
     ...(items.length === 0 ? [{ label: "No item codes yet", href: "/masters/items" }] : []),
     ...(parties.length === 0
-      ? [{ label: "No suppliers yet", href: "/masters/parties" }]
+      ? [{ label: "No parties yet", href: "/masters/parties" }]
       : []),
   ];
 
@@ -46,7 +53,7 @@ export default async function NewPurchaseInvoicePage() {
         title="New supplier bill"
         subtitle="A bill from one of your own suppliers. It records money only — no stock moves."
       />
-      <PurchaseInvoiceForm items={items} parties={parties} />
+      <PurchaseInvoiceForm items={items} parties={parties} routes={routes} />
     </>
   );
 }

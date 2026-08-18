@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, Plus, Trash2 } from "lucide-react";
 import type { ItemOption } from "@/app/api/items/route";
-import type { PartyOption } from "@/lib/queries/masters";
+import type { PartyOption, RouteOption } from "@/lib/queries/masters";
 import {
   Button,
   Card,
@@ -53,10 +53,12 @@ export interface ChallanFormValues {
 export function ChallanForm({
   items,
   parties,
+  routes = [],
   initial,
 }: {
   items: ItemOption[];
   parties: PartyOption[];
+  routes?: RouteOption[];
   initial?: ChallanFormValues;
 }) {
   const router = useRouter();
@@ -97,6 +99,15 @@ export function ChallanForm({
 
   function addRow() {
     setRows((prev) => [...prev, emptyRow()]);
+  }
+
+  /** The agreed rate for this account, from Masters → Process routes. */
+  function vendorRate(itemId: string): number | null {
+    const matches = routes.filter(
+      (route) => route.inputItemId === itemId && (route.partyId === header.partyId || route.partyId === null),
+    );
+    if (matches.length === 0) return null;
+    return (matches.find((route) => route.partyId === header.partyId) ?? matches[0]).jobRate;
   }
 
   function removeRow(key: string) {
@@ -303,7 +314,7 @@ export function ChallanForm({
                         onSelect={(item) =>
                           patchRow(row.key, {
                             item,
-                            rate: row.rate || String(item.standardValue || ""),
+                            rate: row.rate || String(vendorRate(item._id) ?? item.standardValue ?? ""),
                           })
                         }
                       />

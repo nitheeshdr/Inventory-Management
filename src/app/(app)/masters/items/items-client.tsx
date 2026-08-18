@@ -34,6 +34,7 @@ export interface ItemRow {
   gstRate: number;
   reorderLevel: number;
   isActive: boolean;
+  isFoc: boolean;
 }
 
 const ITEM_TYPE_LABELS: Record<ItemType, string> = {
@@ -55,6 +56,7 @@ function blank(): ItemRow {
     gstRate: 18,
     reorderLevel: 0,
     isActive: true,
+    isFoc: false,
   };
 }
 
@@ -91,6 +93,7 @@ export function ItemsClient({ rows }: { rows: ItemRow[] }) {
       gstRate: Number(editing.gstRate) || 0,
       reorderLevel: Number(editing.reorderLevel) || 0,
       isActive: editing.isActive,
+      isFoc: editing.isFoc,
     };
 
     startTransition(async () => {
@@ -163,6 +166,7 @@ export function ItemsClient({ rows }: { rows: ItemRow[] }) {
                 <ThNum>Standard value</ThNum>
                 <ThNum>GST %</ThNum>
                 <ThNum>Reorder level</ThNum>
+                <Th>FOC</Th>
                 <Th />
               </tr>
             </thead>
@@ -181,6 +185,9 @@ export function ItemsClient({ rows }: { rows: ItemRow[] }) {
                   <TdNum>{formatAmount(row.standardValue)}</TdNum>
                   <TdNum className="text-fg-muted">{row.gstRate}</TdNum>
                   <TdNum className="text-fg-muted">{formatQty(row.reorderLevel)}</TdNum>
+                  <Td>
+                    {row.isFoc && <Chip tone="warning">FOC</Chip>}
+                  </Td>
                   <Td>
                     <Button variant="ghost" size="sm" onClick={() => setEditing(row)}>
                       Edit
@@ -297,6 +304,18 @@ export function ItemsClient({ rows }: { rows: ItemRow[] }) {
                   className="tnum text-right"
                 />
               </Field>
+            </div>
+            <div className="flex items-center gap-2 pt-1">
+              <input
+                type="checkbox"
+                id="isFocItem"
+                checked={editing.isFoc}
+                onChange={(e) => setEditing({ ...editing, isFoc: e.target.checked })}
+                className="h-4 w-4 rounded border-border text-accent focus:ring-accent"
+              />
+              <label htmlFor="isFocItem" className="text-sm font-medium text-fg cursor-pointer">
+                Free of cost — never billed, only handled through Returns
+              </label>
             </div>
           </div>
         )}

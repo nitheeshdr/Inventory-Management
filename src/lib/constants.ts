@@ -19,8 +19,12 @@ export type DocStatus = (typeof DOC_STATUSES)[number];
 export const INVOICE_STATUSES = ["draft", "verified", "flagged", "approved", "cancelled"] as const;
 export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];
 
-/** What we send back. Only `processed` lines convert an item code. */
-export const GRN_LINE_KINDS = ["processed", "rejected", "unprocessed", "scrap"] as const;
+/**
+ * What we send back. Only `processed` lines convert an item code. `foc` lines
+ * carry free-of-cost material out to the customer — they never arrived on a
+ * challan, so they need no allocation against one.
+ */
+export const GRN_LINE_KINDS = ["processed", "rejected", "unprocessed", "scrap", "foc"] as const;
 export type GrnLineKind = (typeof GRN_LINE_KINDS)[number];
 
 export const GRN_LINE_KIND_LABELS: Record<GrnLineKind, string> = {
@@ -28,6 +32,7 @@ export const GRN_LINE_KIND_LABELS: Record<GrnLineKind, string> = {
   rejected: "Rejected",
   unprocessed: "Unprocessed",
   scrap: "Scrap",
+  foc: "FOC (free of cost)",
 };
 
 /** Every kind of document that can move stock. */

@@ -19,6 +19,7 @@ export default async function ItemsMasterPage() {
     gstRate: item.gstRate,
     reorderLevel: item.reorderLevel,
     isActive: item.isActive,
+    isFoc: item.isFoc,
   }));
 
   return <ItemsClient rows={rows} />;

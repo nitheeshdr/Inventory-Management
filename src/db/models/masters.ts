@@ -142,6 +142,8 @@ export interface ItemDoc {
   gstRate: number;
   reorderLevel: number;
   isActive: boolean;
+  /** Free of cost — never billed; handled through the Return module instead. */
+  isFoc: boolean;
 }
 
 const itemSchema = new Schema<ItemDoc>(
@@ -155,6 +157,7 @@ const itemSchema = new Schema<ItemDoc>(
     gstRate: { type: Number, default: 18, min: 0 },
     reorderLevel: { type: Number, default: 0, min: 0 },
     isActive: { type: Boolean, default: true },
+    isFoc: { type: Boolean, default: false },
   },
   { timestamps: true, collection: "items" },
 );

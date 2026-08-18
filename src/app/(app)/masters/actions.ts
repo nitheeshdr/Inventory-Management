@@ -27,6 +27,7 @@ const itemSchema = z.object({
   gstRate: z.number().min(0).max(28).default(18),
   reorderLevel: z.number().min(0).default(0),
   isActive: z.boolean().default(true),
+  isFoc: z.boolean().default(false),
 });
 
 export type ItemInput = z.input<typeof itemSchema>;

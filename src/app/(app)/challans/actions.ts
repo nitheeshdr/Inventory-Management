@@ -5,7 +5,7 @@ import { Types } from "mongoose";
 import { z } from "zod";
 import { connectDb, withTransaction } from "@/db/connect";
 import { CompanyProfile, Item, JobWorkChallan, Location, Party } from "@/db/models";
-import { postMovements, reverseMovements } from "@/lib/ledger";
+import { checkAvailability, postMovements, reverseMovements } from "@/lib/ledger";
 import { getPendingChallanLines } from "@/lib/allocation";
 import { ensurePlantLocation } from "@/lib/setup";
 import { addYears, round2 } from "@/lib/format";
@@ -157,9 +157,30 @@ export async function saveChallan(
   const tax = splitTax(totalTaxable, data.taxRate, interState);
   const challanDate = new Date(data.challanDate);
 
-  // No availability check on an inward challan — the customer is sending these
-  // goods to us, so our own balance is irrelevant.
+  // No hard block on an inward challan — the customer is sending these goods to
+  // us, so our own balance is irrelevant to whether it's true. But a customer's
+  // location balance only ever falls (nothing else credits it), so if it drifts
+  // negative that's a real signal — usually opening stock that was never
+  // entered, or two processes sharing one account (e.g. stripping and painting
+  // both drawing on the same code) — worth a warning even though we still save.
   const warnings: string[] = [];
+  const perItemQty = new Map<string, number>();
+  for (const line of lines) {
+    perItemQty.set(
+      line.itemId.toString(),
+      round2((perItemQty.get(line.itemId.toString()) ?? 0) + line.qty),
+    );
+  }
+  const shortfalls = await checkAvailability(
+    customerLocation._id,
+    [...perItemQty.entries()].map(([itemId, qty]) => ({ itemId, qty })),
+    existing ? { docType: "job_work_challan", docId: existing._id } : undefined,
+  );
+  for (const shortfall of shortfalls) {
+    warnings.push(
+      `${shortfall.itemCode} — this challan claims ${shortfall.requested} from ${party.name} but only ${shortfall.available} is on record there. Check the opening stock for this account.`,
+    );
+  }
 
   const payload = {
     challanNo: data.challanNo,

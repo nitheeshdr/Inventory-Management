@@ -28,15 +28,34 @@ const FILTERS: { value: Filter; label: string }[] = [
   { value: "zero", label: "Nil stock" },
 ];
 
-export function StockTable({ rows }: { rows: ItemStockRow[] }) {
+export interface StockLocationOption {
+  _id: string;
+  name: string;
+  kind: string;
+}
+
+export function StockTable({
+  rows,
+  locations = [],
+}: {
+  rows: ItemStockRow[];
+  locations?: StockLocationOption[];
+}) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
+  const [vendorLocationId, setVendorLocationId] = useState("");
+
+  const vendorLocation = locations.find((l) => l._id === vendorLocationId) ?? null;
+
+  const qtyAt = (row: ItemStockRow, locationId: string) =>
+    row.byLocation.find((l) => l.locationId === locationId)?.qty ?? 0;
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
 
     return rows.filter((row) => {
       if (q && !`${row.itemCode} ${row.description}`.toLowerCase().includes(q)) return false;
+      if (vendorLocationId && qtyAt(row, vendorLocationId) === 0) return false;
 
       switch (filter) {
         case "plant":
@@ -51,20 +70,20 @@ export function StockTable({ rows }: { rows: ItemStockRow[] }) {
           return true;
       }
     });
-  }, [rows, query, filter]);
+  }, [rows, query, filter, vendorLocationId]);
 
   const totals = useMemo(
     () =>
       visible.reduce(
         (acc, row) => ({
           plant: acc.plant + row.plantQty,
-          vendor: acc.vendor + row.offSiteQty,
+          vendor: acc.vendor + (vendorLocationId ? qtyAt(row, vendorLocationId) : row.offSiteQty),
           total: acc.total + row.totalQty,
           value: acc.value + row.totalValue,
         }),
         { plant: 0, vendor: 0, total: 0, value: 0 },
       ),
-    [visible],
+    [visible, vendorLocationId],
   );
 
   return (
@@ -93,6 +112,20 @@ export function StockTable({ rows }: { rows: ItemStockRow[] }) {
             </option>
           ))}
         </Select>
+        {locations.length > 0 && (
+          <Select
+            value={vendorLocationId}
+            onChange={(event) => setVendorLocationId(event.target.value)}
+            className="w-auto min-w-[14rem]"
+          >
+            <option value="">All vendor codes</option>
+            {locations.map((location) => (
+              <option key={location._id} value={location._id}>
+                {location.name}
+              </option>
+            ))}
+          </Select>
+        )}
         <span className="text-xs text-fg-muted">
           {visible.length} of {rows.length} items
         </span>
@@ -114,7 +147,7 @@ export function StockTable({ rows }: { rows: ItemStockRow[] }) {
                 <Th>Description</Th>
                 <Th>Type</Th>
                 <ThNum>In our factory</ThNum>
-                <ThNum>With customer</ThNum>
+                <ThNum>{vendorLocation ? `At ${vendorLocation.name}` : "With customer"}</ThNum>
                 <ThNum>Total</ThNum>
                 <ThNum>Value</ThNum>
               </tr>
@@ -153,9 +186,22 @@ export function StockTable({ rows }: { rows: ItemStockRow[] }) {
                   <TdNum className={row.plantQty < 0 ? "text-danger" : undefined}>
                     {formatQty(row.plantQty)}
                   </TdNum>
-                  <TdNum className={row.offSiteQty > 0 ? "text-warning" : "text-fg-subtle"}>
-                    {formatQty(row.offSiteQty)}
-                  </TdNum>
+                  {(() => {
+                    const vendorQty = vendorLocationId ? qtyAt(row, vendorLocationId) : row.offSiteQty;
+                    return (
+                      <TdNum
+                        className={
+                          vendorQty < 0
+                            ? "text-danger"
+                            : vendorQty > 0
+                              ? "text-warning"
+                              : "text-fg-subtle"
+                        }
+                      >
+                        {formatQty(vendorQty)}
+                      </TdNum>
+                    );
+                  })()}
                   <TdNum className="font-medium">{formatQty(row.totalQty)}</TdNum>
                   <TdNum className="text-fg-muted">{formatAmount(row.totalValue)}</TdNum>
                 </tr>

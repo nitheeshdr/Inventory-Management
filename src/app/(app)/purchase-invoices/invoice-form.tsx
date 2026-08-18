@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, Plus, Trash2 } from "lucide-react";
 import type { ItemOption } from "@/app/api/items/route";
-import type { PartyOption } from "@/lib/queries/masters";
+import type { PartyOption, RouteOption } from "@/lib/queries/masters";
 import {
   Button,
   Card,
@@ -78,10 +78,12 @@ export interface InvoiceFormValues {
 export function PurchaseInvoiceForm({
   items,
   parties,
+  routes = [],
   initial,
 }: {
   items: ItemOption[];
   parties: PartyOption[];
+  routes?: RouteOption[];
   initial?: InvoiceFormValues;
 }) {
   const router = useRouter();
@@ -123,6 +125,17 @@ export function PurchaseInvoiceForm({
 
   function patchRow(key: string, patch: Partial<LineRow>) {
     setRows((prev) => prev.map((row) => (row.key === key ? { ...row, ...patch } : row)));
+  }
+
+  /** The agreed rate for this vendor account, from Masters → Process routes. */
+  function vendorRate(itemId: string): number | null {
+    const matches = routes.filter(
+      (route) =>
+        (route.inputItemId === itemId || route.outputItemId === itemId) &&
+        (route.partyId === header.partyId || route.partyId === null),
+    );
+    if (matches.length === 0) return null;
+    return (matches.find((route) => route.partyId === header.partyId) ?? matches[0]).jobRate;
   }
 
   const totals = useMemo(() => {
@@ -307,6 +320,7 @@ export function PurchaseInvoiceForm({
                             item,
                             hsnCode: row.hsnCode || item.hsnCode,
                             taxPct: row.taxPct || String(item.gstRate || 18),
+                            rate: row.rate || String(vendorRate(item._id) ?? ""),
                           })
                         }
                       />
