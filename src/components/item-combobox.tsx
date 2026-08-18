@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Check, ChevronDown } from "lucide-react";
 import type { ItemOption } from "@/app/api/items/route";
 import { cn } from "@/lib/utils";
@@ -27,6 +28,7 @@ export function ItemCombobox({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [highlight, setHighlight] = useState(0);
+  const [dropdownRect, setDropdownRect] = useState<{ top: number; left: number; width: number } | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
 
@@ -40,11 +42,42 @@ export function ItemCombobox({
 
   useEffect(() => {
     function onClickAway(event: MouseEvent) {
-      if (!wrapRef.current?.contains(event.target as Node)) setOpen(false);
+      const target = event.target as Node;
+      // The dropdown itself lives in a portal (see below), so it's no longer a
+      // DOM descendant of wrapRef — it needs its own containment check, or every
+      // click on an option would look like a click-away and close the list
+      // before the option's own onClick ever fires.
+      if (wrapRef.current?.contains(target)) return;
+      if (listRef.current?.contains(target)) return;
+      setOpen(false);
     }
     document.addEventListener("mousedown", onClickAway);
     return () => document.removeEventListener("mousedown", onClickAway);
   }, []);
+
+  // The line-item tables this sits in are wrapped in a horizontally-scrolling
+  // container. Per the CSS overflow spec, setting overflow-x alone forces
+  // overflow-y to compute to "auto" too, so a dropdown positioned relative to
+  // its trigger gets silently clipped to almost nothing. Rendering it through
+  // a portal, positioned from the trigger's real screen coordinates, is what
+  // actually escapes that clipping.
+  useLayoutEffect(() => {
+    if (!open) return;
+    function updatePosition() {
+      const trigger = wrapRef.current?.getBoundingClientRect();
+      if (!trigger) return;
+      const width = Math.min(448, window.innerWidth - 16);
+      const left = Math.min(trigger.left, window.innerWidth - width - 8);
+      setDropdownRect({ top: trigger.bottom + 4, left: Math.max(8, left), width });
+    }
+    updatePosition();
+    window.addEventListener("scroll", updatePosition, true);
+    window.addEventListener("resize", updatePosition);
+    return () => {
+      window.removeEventListener("scroll", updatePosition, true);
+      window.removeEventListener("resize", updatePosition);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -94,37 +127,41 @@ export function ItemCombobox({
         <ChevronDown className="mr-1.5 h-3.5 w-3.5 shrink-0 text-fg-subtle" strokeWidth={1.75} />
       </div>
 
-      {open && (
-        <ul
-          ref={listRef}
-          className="scroll-thin absolute z-30 mt-1 max-h-64 w-[min(28rem,80vw)] overflow-y-auto rounded-md border border-border bg-surface p-1 shadow-xl"
-        >
-          {matches.length === 0 && (
-            <li className="px-2.5 py-3 text-center text-xs text-fg-muted">
-              No item matches “{query}”
-            </li>
-          )}
-          {matches.map((item, index) => (
-            <li key={item._id}>
-              <button
-                type="button"
-                onMouseEnter={() => setHighlight(index)}
-                onClick={() => choose(item)}
-                className={cn(
-                  "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[13px]",
-                  index === highlight ? "bg-accent-soft text-accent" : "text-fg",
-                )}
-              >
-                <span className="w-20 shrink-0 font-mono">{item.itemCode}</span>
-                <span className="min-w-0 flex-1 truncate text-fg-muted">
-                  {item.description}
-                </span>
-                {value?._id === item._id && <Check className="h-3.5 w-3.5" strokeWidth={2} />}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+      {open &&
+        dropdownRect &&
+        createPortal(
+          <ul
+            ref={listRef}
+            style={{ top: dropdownRect.top, left: dropdownRect.left, width: dropdownRect.width }}
+            className="scroll-thin fixed z-50 max-h-64 overflow-y-auto rounded-md border border-border bg-surface p-1 shadow-xl"
+          >
+            {matches.length === 0 && (
+              <li className="px-2.5 py-3 text-center text-xs text-fg-muted">
+                No item matches “{query}”
+              </li>
+            )}
+            {matches.map((item, index) => (
+              <li key={item._id}>
+                <button
+                  type="button"
+                  onMouseEnter={() => setHighlight(index)}
+                  onClick={() => choose(item)}
+                  className={cn(
+                    "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[13px]",
+                    index === highlight ? "bg-accent-soft text-accent" : "text-fg",
+                  )}
+                >
+                  <span className="w-20 shrink-0 font-mono">{item.itemCode}</span>
+                  <span className="min-w-0 flex-1 truncate text-fg-muted">
+                    {item.description}
+                  </span>
+                  {value?._id === item._id && <Check className="h-3.5 w-3.5" strokeWidth={2} />}
+                </button>
+              </li>
+            ))}
+          </ul>,
+          document.body,
+        )}
     </div>
   );
 }
