@@ -134,8 +134,12 @@ export function StockTable({
       {visible.length === 0 ? (
         <TableWrap>
           <EmptyState
-            title="No items match"
-            description="Try a different search term or clear the filter."
+            title={vendorLocation ? `Nothing recorded ${vendorLocation.name} yet` : "No items match"}
+            description={
+              vendorLocation
+                ? "No inward challan or return has ever moved stock through this account — it isn't a broken filter, there's just no ledger history for it yet."
+                : "Try a different search term or clear the filter."
+            }
           />
         </TableWrap>
       ) : (
