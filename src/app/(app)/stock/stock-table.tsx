@@ -147,7 +147,7 @@ export function StockTable({
                 <Th>Description</Th>
                 <Th>Type</Th>
                 <ThNum>In our factory</ThNum>
-                <ThNum>{vendorLocation ? `At ${vendorLocation.name}` : "With customer"}</ThNum>
+                <ThNum>{vendorLocation ? vendorLocation.name : "With customer"}</ThNum>
                 <ThNum>Total</ThNum>
                 <ThNum>Value</ThNum>
               </tr>
