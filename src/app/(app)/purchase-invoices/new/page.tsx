@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { PageHeader } from "@/components/ui/primitives";
-import { getItemOptions, getParties, getRoutes } from "@/lib/queries/masters";
+import { getCompany, getItemOptions, getParties, getRoutes } from "@/lib/queries/masters";
 import { SetupRequired } from "@/components/setup-gate";
 import { PurchaseInvoiceForm } from "../invoice-form";
 
@@ -11,10 +11,11 @@ export default async function NewPurchaseInvoicePage() {
   // Every party, not just "supplier" — a job-work vendor account (Masters →
   // Process routes) can also bill us, and its agreed rate should offer itself
   // when picked here.
-  const [items, parties, routes] = await Promise.all([
+  const [items, parties, routes, company] = await Promise.all([
     getItemOptions(),
     getParties(),
     getRoutes(),
+    getCompany(),
   ]);
 
   const missing = [
@@ -53,7 +54,12 @@ export default async function NewPurchaseInvoicePage() {
         title="New supplier bill"
         subtitle="A bill from one of your own suppliers. It records money only — no stock moves."
       />
-      <PurchaseInvoiceForm items={items} parties={parties} routes={routes} />
+      <PurchaseInvoiceForm
+        items={items}
+        parties={parties}
+        routes={routes}
+        companyStateCode={company?.stateCode ?? "37"}
+      />
     </>
   );
 }

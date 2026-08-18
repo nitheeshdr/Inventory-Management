@@ -266,13 +266,17 @@ export async function checkAvailability(
   locationId: Types.ObjectId | string,
   requests: { itemId: Types.ObjectId | string; qty: number }[],
   excludeDoc?: Pick<DocRef, "docType" | "docId">,
+  session?: ClientSession,
 ): Promise<ShortfallWarning[]> {
   await connectDb();
 
+  // Rounded on every accumulation, not just at the end — two lines like 0.1
+  // and 0.2 summed as raw floats (0.30000000000000004) would read as short
+  // against an exact 0.3 balance and wrongly trip the hard block in GRN.
   const wanted = new Map<string, number>();
   for (const req of requests) {
     const key = oid(req.itemId).toString();
-    wanted.set(key, (wanted.get(key) ?? 0) + req.qty);
+    wanted.set(key, round3((wanted.get(key) ?? 0) + req.qty));
   }
   if (wanted.size === 0) return [];
 
@@ -290,7 +294,7 @@ export async function checkAvailability(
   const balances = await StockMovement.aggregate<{ _id: Types.ObjectId; qty: number }>([
     { $match: match },
     { $group: { _id: "$itemId", qty: { $sum: "$qty" } } },
-  ]);
+  ]).session(session ?? null);
 
   const balanceByItem = new Map(balances.map((b) => [b._id.toString(), round3(b.qty)]));
   const items = await Item.find({ _id: { $in: itemIds } })

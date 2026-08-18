@@ -16,6 +16,9 @@ import { round3 } from "@/lib/format";
 import { ensurePlantLocation } from "@/lib/setup";
 import type { ActionResult } from "@/app/(app)/challans/actions";
 
+/** Thrown inside the save transaction so it can be turned back into a clean ActionResult. */
+class InsufficientStockError extends Error {}
+
 const allocationSchema = z.object({
   challanId: z.string().min(1),
   challanLineId: z.string().min(1),
@@ -173,17 +176,7 @@ export async function saveGrn(
       round3((consumedByInput.get(line.inputItemId) ?? 0) + consumed),
     );
   }
-  const shortfalls = await checkAvailability(
-    plant._id,
-    [...consumedByInput.entries()].map(([itemId, qty]) => ({ itemId, qty })),
-    existing ? { docType: "grn", docId: existing._id } : undefined,
-  );
-  if (shortfalls.length > 0) {
-    const detail = shortfalls
-      .map((s) => `${s.itemCode}: needs ${s.requested} but only ${s.available} in our factory`)
-      .join("; ");
-    return { ok: false, error: `Not enough stock in our factory to process this return — ${detail}.` };
-  }
+  const consumedRequests = [...consumedByInput.entries()].map(([itemId, qty]) => ({ itemId, qty }));
 
   const itemIds = [
     ...new Set(data.lines.flatMap((line) => [line.itemId, line.inputItemId])),
@@ -224,13 +217,19 @@ export async function saveGrn(
       inputItemId: inputItem._id,
       routeId: line.routeId ? new Types.ObjectId(line.routeId) : undefined,
       rejectionReason: line.rejectionReason,
-      allocations: line.allocations.map((alloc) => ({
-        _id: new Types.ObjectId(),
-        challanId: new Types.ObjectId(alloc.challanId),
-        challanNo: challanNoByLine.get(alloc.challanLineId) ?? "",
-        challanLineId: new Types.ObjectId(alloc.challanLineId),
-        qty: alloc.qty,
-      })),
+      // FOC lines never arrived on a challan — forced empty here regardless of
+      // what the request carried, so a foc line can never masquerade as a
+      // return against a real challan line.
+      allocations:
+        line.lineKind === "foc"
+          ? []
+          : line.allocations.map((alloc) => ({
+              _id: new Types.ObjectId(),
+              challanId: new Types.ObjectId(alloc.challanId),
+              challanNo: challanNoByLine.get(alloc.challanLineId) ?? "",
+              challanLineId: new Types.ObjectId(alloc.challanLineId),
+              qty: alloc.qty,
+            })),
     };
   });
 
@@ -252,6 +251,7 @@ export async function saveGrn(
 
   const touchedChallans = new Set<string>();
   for (const line of data.lines) {
+    if (line.lineKind === "foc") continue;
     for (const alloc of line.allocations) touchedChallans.add(alloc.challanId);
   }
   if (existing) {
@@ -260,60 +260,86 @@ export async function saveGrn(
     }
   }
 
-  const saved = await withTransaction(async (session) => {
-    const grn = existing
-      ? await Grn.findByIdAndUpdate(existing._id, payload, { new: true, session })
-      : await Grn.create([{ ...payload, status: "open" }], { session }).then((docs) => docs[0]);
+  let saved: { _id: Types.ObjectId };
+  try {
+    saved = await withTransaction(async (session) => {
+      // Checked again here, inside the transaction: the challan-pending check
+      // above ran against a snapshot taken before this transaction started, so
+      // a concurrent save touching the same item/location could have changed
+      // the real balance in between. Re-checking under the session is what
+      // actually keeps the hard block race-free.
+      const shortfalls = await checkAvailability(
+        plant._id,
+        consumedRequests,
+        existing ? { docType: "grn", docId: existing._id } : undefined,
+        session,
+      );
+      if (shortfalls.length > 0) {
+        const detail = shortfalls
+          .map((s) => `${s.itemCode}: needs ${s.requested} but only ${s.available} in our factory`)
+          .join("; ");
+        throw new InsufficientStockError(
+          `Not enough stock in our factory to process this return — ${detail}.`,
+        );
+      }
 
-    if (!grn) throw new Error("Could not save the return note.");
+      const grn = existing
+        ? await Grn.findByIdAndUpdate(existing._id, payload, { new: true, session })
+        : await Grn.create([{ ...payload, status: "open" }], { session }).then((docs) => docs[0]);
 
-    await postMovements(
-      {
-        docType: "grn",
-        docId: grn._id,
-        docNo: grn.grnNo,
-        movementDate: grnDate,
-        partyId: party._id,
-      },
-      grn.lines.flatMap((line) => {
-        // What leaves the vendor is always the input code — that is what they
-        // were holding. What arrives at the plant is the output code for
-        // processed goods and the same input code for everything else. FOC
-        // lines never arrived on a challan, so the plant loses the full qty.
-        const consumedQty =
-          line.lineKind === "foc"
-            ? line.qty
-            : line.allocations.reduce((total, alloc) => total + alloc.qty, 0);
+      if (!grn) throw new Error("Could not save the return note.");
 
-        return [
-          {
-            itemId: line.inputItemId!,
-            locationId: plant._id,
-            qty: -consumedQty,
-            docLineId: line._id,
-            remark: line.lineKind === "foc" ? `FOC goods sent to ${party.name}` : `Consumed for ${party.name}`,
-          },
-          {
-            itemId: line.itemId,
-            locationId: customerLocation._id,
-            qty: line.qty,
-            docLineId: line._id,
-            remark:
-              line.lineKind === "processed"
-                ? `Processed goods despatched to ${party.name}`
-                : line.lineKind === "foc"
-                  ? `Free of cost — not billed`
-                  : `${line.lineKind} — ${line.rejectionReason ?? "no reason given"}`,
-          },
-        ];
-      }),
-      session,
-    );
+      await postMovements(
+        {
+          docType: "grn",
+          docId: grn._id,
+          docNo: grn.grnNo,
+          movementDate: grnDate,
+          partyId: party._id,
+        },
+        grn.lines.flatMap((line) => {
+          // What leaves the vendor is always the input code — that is what they
+          // were holding. What arrives at the plant is the output code for
+          // processed goods and the same input code for everything else. FOC
+          // lines never arrived on a challan, so the plant loses the full qty.
+          const consumedQty =
+            line.lineKind === "foc"
+              ? line.qty
+              : line.allocations.reduce((total, alloc) => total + alloc.qty, 0);
 
-    await refreshChallanStatuses([...touchedChallans], session);
+          return [
+            {
+              itemId: line.inputItemId!,
+              locationId: plant._id,
+              qty: -consumedQty,
+              docLineId: line._id,
+              remark: line.lineKind === "foc" ? `FOC goods sent to ${party.name}` : `Consumed for ${party.name}`,
+            },
+            {
+              itemId: line.itemId,
+              locationId: customerLocation._id,
+              qty: line.qty,
+              docLineId: line._id,
+              remark:
+                line.lineKind === "processed"
+                  ? `Processed goods despatched to ${party.name}`
+                  : line.lineKind === "foc"
+                    ? `Free of cost — not billed`
+                    : `${line.lineKind} — ${line.rejectionReason ?? "no reason given"}`,
+            },
+          ];
+        }),
+        session,
+      );
 
-    return grn;
-  });
+      await refreshChallanStatuses([...touchedChallans], session);
+
+      return grn;
+    });
+  } catch (err) {
+    if (err instanceof InsufficientStockError) return { ok: false, error: err.message };
+    throw err;
+  }
 
   revalidatePath("/grn");
   revalidatePath("/challans");
@@ -372,20 +398,25 @@ export async function resolveRoute(inputItemId: string, partyId: string) {
     )
     .lean();
 
-  return routes.map((route) => {
+  // A route whose output item was since deleted populates to null — skip it
+  // rather than crash the GRN form's route lookup.
+  return routes.flatMap((route) => {
     const output = route.outputItemId as unknown as {
       _id: Types.ObjectId;
       itemCode: string;
       description: string;
-    };
-    return {
-      routeId: route._id.toString(),
-      outputItemId: output._id.toString(),
-      outputItemCode: output.itemCode,
-      outputDescription: output.description,
-      processName: route.processName,
-      jobRate: route.jobRate,
-      isConfirmed: route.isConfirmed,
-    };
+    } | null;
+    if (!output) return [];
+    return [
+      {
+        routeId: route._id.toString(),
+        outputItemId: output._id.toString(),
+        outputItemCode: output.itemCode,
+        outputDescription: output.description,
+        processName: route.processName,
+        jobRate: route.jobRate,
+        isConfirmed: route.isConfirmed,
+      },
+    ];
   });
 }

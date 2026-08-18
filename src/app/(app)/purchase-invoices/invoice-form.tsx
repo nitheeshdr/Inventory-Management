@@ -33,6 +33,9 @@ interface LineRow {
   discountPct: string;
   taxPct: string;
   hsnCode: string;
+  /** "auto" rows recompute their rate when the item or vendor changes; a row
+   *  the user has typed into directly is "manual" and is left alone. */
+  rateSource: "auto" | "manual";
 }
 
 function emptyRow(): LineRow {
@@ -44,6 +47,7 @@ function emptyRow(): LineRow {
     discountPct: "0",
     taxPct: "18",
     hsnCode: "",
+    rateSource: "auto",
   };
 }
 
@@ -79,11 +83,13 @@ export function PurchaseInvoiceForm({
   items,
   parties,
   routes = [],
+  companyStateCode,
   initial,
 }: {
   items: ItemOption[];
   parties: PartyOption[];
   routes?: RouteOption[];
+  companyStateCode: string;
   initial?: InvoiceFormValues;
 }) {
   const router = useRouter();
@@ -116,6 +122,7 @@ export function PurchaseInvoiceForm({
           discountPct: String(line.discountPct),
           taxPct: String(line.taxPct),
           hsnCode: line.hsnCode,
+          rateSource: "manual" as const,
         }))
       : [emptyRow()],
   );
@@ -128,39 +135,57 @@ export function PurchaseInvoiceForm({
   }
 
   /** The agreed rate for this vendor account, from Masters → Process routes. */
-  function vendorRate(itemId: string): number | null {
+  function vendorRate(itemId: string, partyId: string): number | null {
     const matches = routes.filter(
       (route) =>
         (route.inputItemId === itemId || route.outputItemId === itemId) &&
-        (route.partyId === header.partyId || route.partyId === null),
+        (route.partyId === partyId || route.partyId === null),
     );
     if (matches.length === 0) return null;
-    return (matches.find((route) => route.partyId === header.partyId) ?? matches[0]).jobRate;
+    return (matches.find((route) => route.partyId === partyId) ?? matches[0]).jobRate;
   }
+
+  /** Switching the party invalidates every rate this account didn't set by hand. */
+  function changeParty(partyId: string) {
+    setHeader((prev) => ({ ...prev, partyId }));
+    setRows((prev) =>
+      prev.map((row) => {
+        if (row.rateSource !== "auto" || !row.item) return row;
+        const rate = vendorRate(row.item._id, partyId) ?? 0;
+        return { ...row, rate: String(rate || "") };
+      }),
+    );
+  }
+
+  const party = parties.find((p) => p._id === header.partyId);
+  const interState = party ? party.stateCode !== companyStateCode : false;
 
   const totals = useMemo(() => {
     let subtotal = 0;
     let cgst = 0;
     let sgst = 0;
+    let igst = 0;
     let qty = 0;
 
     for (const row of rows) {
       const q = Number(row.qty) || 0;
       const taxable = lineTaxable(q, Number(row.rate) || 0, Number(row.discountPct) || 0);
-      const tax = splitTax(taxable, Number(row.taxPct) || 0, false);
+      const tax = splitTax(taxable, Number(row.taxPct) || 0, interState);
       qty += q;
       subtotal += taxable;
       cgst += tax.cgstAmount;
       sgst += tax.sgstAmount;
+      igst += tax.igstAmount;
     }
 
     subtotal = round2(subtotal);
     cgst = round2(cgst);
     sgst = round2(sgst);
-    const { roundOff, rounded } = roundOffDelta(round2(subtotal + cgst + sgst));
+    igst = round2(igst);
+    const { roundOff, rounded } = roundOffDelta(round2(subtotal + cgst + sgst + igst));
 
-    return { qty, subtotal, cgst, sgst, roundOff, grand: rounded };
-  }, [rows]);
+    return { qty, subtotal, cgst, sgst, igst, roundOff, grand: rounded };
+  }, [rows, interState]);
 
   function submit() {
     setError(null);
@@ -227,7 +252,7 @@ export function PurchaseInvoiceForm({
           <Field label="Supplier" required>
             <Select
               value={header.partyId}
-              onChange={(e) => setHeader({ ...header, partyId: e.target.value })}
+              onChange={(e) => changeParty(e.target.value)}
             >
               {parties.length === 0 && <option value="">No suppliers yet</option>}
               {parties.map((party) => (
@@ -320,7 +345,9 @@ export function PurchaseInvoiceForm({
                             item,
                             hsnCode: row.hsnCode || item.hsnCode,
                             taxPct: row.taxPct || String(item.gstRate || 18),
-                            rate: row.rate || String(vendorRate(item._id) ?? ""),
+                            ...(row.rateSource === "auto"
+                              ? { rate: String(vendorRate(item._id, header.partyId) ?? "") }
+                              : {}),
                           })
                         }
                       />
@@ -345,7 +372,9 @@ export function PurchaseInvoiceForm({
                         type="number"
                         step="0.01"
                         value={row.rate}
-                        onChange={(e) => patchRow(row.key, { rate: e.target.value })}
+                        onChange={(e) =>
+                          patchRow(row.key, { rate: e.target.value, rateSource: "manual" })
+                        }
                         className="tnum h-8 text-right"
                       />
                     </Td>
@@ -390,8 +419,14 @@ export function PurchaseInvoiceForm({
         <div className="flex flex-wrap justify-end gap-x-10 gap-y-2 border-t border-border px-4 py-3">
           <Figure label="Total qty" value={totals.qty.toLocaleString("en-IN")} />
           <Figure label="Before tax" value={formatAmount(totals.subtotal)} />
-          <Figure label="CGST" value={formatAmount(totals.cgst)} />
-          <Figure label="SGST" value={formatAmount(totals.sgst)} />
+          {interState ? (
+            <Figure label="IGST" value={formatAmount(totals.igst)} />
+          ) : (
+            <>
+              <Figure label="CGST" value={formatAmount(totals.cgst)} />
+              <Figure label="SGST" value={formatAmount(totals.sgst)} />
+            </>
+          )}
           <Figure label="Round off" value={formatAmount(totals.roundOff)} />
           <Figure label="Grand total" value={formatAmount(totals.grand)} strong />
         </div>

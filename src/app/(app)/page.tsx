@@ -56,7 +56,7 @@ export default async function DashboardPage() {
         />
         <Tile
           icon={<Truck className="h-4 w-4" strokeWidth={1.75} />}
-          label="Returned to customers"
+          label="With the customer"
           value={`${formatQty(data.offSiteQty)} pcs`}
           detail={`${formatINRShort(data.pendingValue)} still to return across ${data.openChallans} open challans`}
           href="/challans"

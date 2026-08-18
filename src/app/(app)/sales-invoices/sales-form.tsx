@@ -70,6 +70,11 @@ export function SalesInvoiceForm({
   const [pending, startTransition] = useTransition();
 
   const itemById = useMemo(() => new Map(items.map((item) => [item._id, item])), [items]);
+  // FOC items are never billed — keep them out of the picker, but leave `items`
+  // (and itemById) intact so an existing line stays visible if its item is
+  // flagged FOC later; the server rejects the save with a clear error instead
+  // of the line silently vanishing.
+  const billableItems = useMemo(() => items.filter((item) => !item.isFoc), [items]);
 
   const [header, setHeader] = useState({
     invoiceNo: initial?.invoiceNo ?? suggestedNo,
@@ -313,7 +318,7 @@ export function SalesInvoiceForm({
                     <Td className="text-fg-subtle">{index + 1}</Td>
                     <Td>
                       <ItemCombobox
-                        items={items}
+                        items={billableItems}
                         value={row.item}
                         onSelect={(item) =>
                           patchRow(row.key, { item, taxPct: String(item.gstRate || 18) })

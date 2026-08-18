@@ -208,6 +208,21 @@ export async function saveRoute(
 
   await connectDb();
 
+  // A dangling reference here doesn't fail loudly at save time — it crashes
+  // getRoutes()'s populate the next time anything reads the route list
+  // (Masters → Routes, New challan, New return), so it's worth catching now.
+  const itemIds = [...new Set([data.inputItemId, data.outputItemId])];
+  const [items, party] = await Promise.all([
+    Item.find({ _id: { $in: itemIds } }).select("_id").lean(),
+    data.partyId ? Party.findById(data.partyId).select("_id").lean() : null,
+  ]);
+  if (items.length !== itemIds.length) {
+    return { ok: false, error: "One of the items on this route no longer exists." };
+  }
+  if (data.partyId && !party) {
+    return { ok: false, error: "That vendor account no longer exists." };
+  }
+
   const payload = {
     ...data,
     partyId: data.partyId ? new Types.ObjectId(data.partyId) : undefined,

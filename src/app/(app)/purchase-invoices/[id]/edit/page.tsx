@@ -5,7 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import { PageHeader } from "@/components/ui/primitives";
 import { connectDb } from "@/db/connect";
 import { PurchaseInvoice } from "@/db/models";
-import { getItemOptions, getParties, getRoutes } from "@/lib/queries/masters";
+import { getCompany, getItemOptions, getParties, getRoutes } from "@/lib/queries/masters";
 import { toDateInputValue } from "@/lib/format";
 import { PurchaseInvoiceForm } from "../../invoice-form";
 
@@ -26,10 +26,11 @@ export default async function EditPurchaseInvoicePage({
   // Every party, not just "supplier" — a job-work vendor account (Masters →
   // Process routes) can also bill us, and its agreed rate should offer itself
   // when picked here.
-  const [items, parties, routes] = await Promise.all([
+  const [items, parties, routes, company] = await Promise.all([
     getItemOptions(),
     getParties(),
     getRoutes(),
+    getCompany(),
   ]);
 
   return (
@@ -49,6 +50,7 @@ export default async function EditPurchaseInvoicePage({
         items={items}
         parties={parties}
         routes={routes}
+        companyStateCode={company?.stateCode ?? "37"}
         initial={{
           _id: id,
           invoiceNo: invoice.invoiceNo,

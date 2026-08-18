@@ -133,22 +133,27 @@ export async function getRoutes(partyId?: string): Promise<RouteOption[]> {
     .sort({ effectiveFrom: -1 })
     .lean();
 
-  return routes.map((route) => {
+  // A route whose output item was since deleted populates to null — skip it
+  // rather than crash every page that lists routes.
+  return routes.flatMap((route) => {
     const output = route.outputItemId as unknown as {
       _id: { toString(): string };
       itemCode: string;
       description: string;
-    };
-    return {
-      _id: route._id.toString(),
-      inputItemId: route.inputItemId.toString(),
-      outputItemId: output._id.toString(),
-      outputItemCode: output.itemCode,
-      outputDescription: output.description,
-      partyId: route.partyId?.toString() ?? null,
-      processName: route.processName,
-      jobRate: route.jobRate,
-      isConfirmed: route.isConfirmed,
-    };
+    } | null;
+    if (!output) return [];
+    return [
+      {
+        _id: route._id.toString(),
+        inputItemId: route.inputItemId.toString(),
+        outputItemId: output._id.toString(),
+        outputItemCode: output.itemCode,
+        outputDescription: output.description,
+        partyId: route.partyId?.toString() ?? null,
+        processName: route.processName,
+        jobRate: route.jobRate,
+        isConfirmed: route.isConfirmed,
+      },
+    ];
   });
 }

@@ -30,10 +30,14 @@ interface LineRow {
   item: ItemOption | null;
   qty: string;
   rate: string;
+  /** "auto" rows recompute their rate when the item or customer changes; a
+   *  row the user has typed into directly is "manual" and is never touched
+   *  again, so a deliberate override always survives. */
+  rateSource: "auto" | "manual";
 }
 
 function emptyRow(): LineRow {
-  return { key: crypto.randomUUID(), item: null, qty: "", rate: "" };
+  return { key: crypto.randomUUID(), item: null, qty: "", rate: "", rateSource: "auto" };
 }
 
 export interface ChallanFormValues {
@@ -85,6 +89,8 @@ export function ChallanForm({
           item: itemById.get(line.itemId) ?? null,
           qty: String(line.qty),
           rate: String(line.rate),
+          // A saved rate is never recomputed out from under the office.
+          rateSource: "manual" as const,
         }))
       : [emptyRow()],
   );
@@ -102,16 +108,28 @@ export function ChallanForm({
   }
 
   /** The agreed rate for this account, from Masters → Process routes. */
-  function vendorRate(itemId: string): number | null {
+  function vendorRate(itemId: string, partyId: string): number | null {
     const matches = routes.filter(
-      (route) => route.inputItemId === itemId && (route.partyId === header.partyId || route.partyId === null),
+      (route) => route.inputItemId === itemId && (route.partyId === partyId || route.partyId === null),
     );
     if (matches.length === 0) return null;
-    return (matches.find((route) => route.partyId === header.partyId) ?? matches[0]).jobRate;
+    return (matches.find((route) => route.partyId === partyId) ?? matches[0]).jobRate;
   }
 
   function removeRow(key: string) {
     setRows((prev) => (prev.length === 1 ? [emptyRow()] : prev.filter((r) => r.key !== key)));
+  }
+
+  /** Switching the customer invalidates every rate this account didn't set by hand. */
+  function changeParty(partyId: string) {
+    setHeader((prev) => ({ ...prev, partyId }));
+    setRows((prev) =>
+      prev.map((row) => {
+        if (row.rateSource !== "auto" || !row.item) return row;
+        const rate = vendorRate(row.item._id, partyId) ?? row.item.standardValue ?? 0;
+        return { ...row, rate: String(rate || "") };
+      }),
+    );
   }
 
   // The declared tax on a challan is computed on the document total, matching
@@ -220,7 +238,7 @@ export function ChallanForm({
           <Field label="Customer" required error={fieldErrors.partyId}>
             <Select
               value={header.partyId}
-              onChange={(e) => setHeader({ ...header, partyId: e.target.value })}
+              onChange={(e) => changeParty(e.target.value)}
             >
               {parties.length === 0 && <option value="">No customers yet</option>}
               {parties.map((party) => (
@@ -314,7 +332,13 @@ export function ChallanForm({
                         onSelect={(item) =>
                           patchRow(row.key, {
                             item,
-                            rate: row.rate || String(vendorRate(item._id) ?? item.standardValue ?? ""),
+                            ...(row.rateSource === "auto"
+                              ? {
+                                  rate: String(
+                                    vendorRate(item._id, header.partyId) ?? item.standardValue ?? "",
+                                  ),
+                                }
+                              : {}),
                           })
                         }
                       />
@@ -341,7 +365,9 @@ export function ChallanForm({
                         inputMode="decimal"
                         step="0.01"
                         value={row.rate}
-                        onChange={(e) => patchRow(row.key, { rate: e.target.value })}
+                        onChange={(e) =>
+                          patchRow(row.key, { rate: e.target.value, rateSource: "manual" })
+                        }
                         onKeyDown={(e) => {
                           if (e.key === "Enter" && index === rows.length - 1) {
                             e.preventDefault();

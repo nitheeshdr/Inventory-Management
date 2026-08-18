@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, Search } from "lucide-react";
 import {
@@ -15,7 +15,7 @@ import {
   Th,
   ThNum,
 } from "@/components/ui/primitives";
-import { formatAmount, formatQty } from "@/lib/format";
+import { formatAmount, formatQty, round3 } from "@/lib/format";
 import type { ItemStockRow } from "@/lib/queries/stock";
 
 type Filter = "all" | "plant" | "vendor" | "low" | "zero";
@@ -50,6 +50,19 @@ export function StockTable({
   const qtyAt = (row: ItemStockRow, locationId: string) =>
     row.byLocation.find((l) => l.locationId === locationId)?.qty ?? 0;
 
+  // When a vendor code is picked, Total/Value should reflect just what's in
+  // our factory plus what's at that one account — not every location the item
+  // has ever touched, which would silently disagree with the two columns
+  // actually shown.
+  const scopedTotals = useCallback(
+    (row: ItemStockRow) => {
+      if (!vendorLocationId) return { qty: row.totalQty, value: row.totalValue };
+      const qty = round3(row.plantQty + qtyAt(row, vendorLocationId));
+      return { qty, value: round3(qty * row.standardValue) };
+    },
+    [vendorLocationId],
+  );
+
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
 
@@ -75,15 +88,18 @@ export function StockTable({
   const totals = useMemo(
     () =>
       visible.reduce(
-        (acc, row) => ({
-          plant: acc.plant + row.plantQty,
-          vendor: acc.vendor + (vendorLocationId ? qtyAt(row, vendorLocationId) : row.offSiteQty),
-          total: acc.total + row.totalQty,
-          value: acc.value + row.totalValue,
-        }),
+        (acc, row) => {
+          const scoped = scopedTotals(row);
+          return {
+            plant: acc.plant + row.plantQty,
+            vendor: acc.vendor + (vendorLocationId ? qtyAt(row, vendorLocationId) : row.offSiteQty),
+            total: acc.total + scoped.qty,
+            value: acc.value + scoped.value,
+          };
+        },
         { plant: 0, vendor: 0, total: 0, value: 0 },
       ),
-    [visible, vendorLocationId],
+    [visible, vendorLocationId, scopedTotals],
   );
 
   return (
@@ -206,8 +222,15 @@ export function StockTable({
                       </TdNum>
                     );
                   })()}
-                  <TdNum className="font-medium">{formatQty(row.totalQty)}</TdNum>
-                  <TdNum className="text-fg-muted">{formatAmount(row.totalValue)}</TdNum>
+                  {(() => {
+                    const scoped = scopedTotals(row);
+                    return (
+                      <>
+                        <TdNum className="font-medium">{formatQty(scoped.qty)}</TdNum>
+                        <TdNum className="text-fg-muted">{formatAmount(scoped.value)}</TdNum>
+                      </>
+                    );
+                  })()}
                 </tr>
               ))}
             </tbody>
